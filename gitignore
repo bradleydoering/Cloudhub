@@ -1,0 +1,29 @@
+# Node
+node_modules
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.pnpm-store
+
+# Next/Vercel
+.next
+.out
+.vercel
+.env
+.env.*.local
+*.local
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Tests & coverage
+coverage
+.playwright
+test-results
+
+# Editor
+.vscode
+.idea
