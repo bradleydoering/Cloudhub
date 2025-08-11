@@ -1,0 +1,16 @@
+node_modules
+*.log
+.next
+.out
+.vercel
+.env
+.env.*.local
+*.local
+.DS_Store
+coverage
+.playwright
+test-results
+.vscode
+.idea
+.turbo
+*.tsbuildinfo

@@ -1,0 +1,22 @@
+{
+  "name": "cloudhub-monorepo",
+  "private": true,
+  "packageManager": "npm@10.0.0",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "turbo run dev --parallel",
+    "build": "turbo run build",
+    "lint": "turbo run lint",
+    "test": "turbo run test",
+    "format": "prettier -w .",
+    "typecheck": "turbo run typecheck"
+  },
+  "devDependencies": {
+    "prettier": "^3.3.3",
+    "turbo": "^2.0.6",
+    "typescript": "^5.5.4"
+  }
+}
