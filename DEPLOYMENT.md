@@ -100,12 +100,13 @@ Resend is configured for transactional emails:
 
 ### Step 2: Configure Each Project
 For each project in Vercel settings:
-- **Build Command:** Custom (configured in vercel.json)
-- **Output Directory:** `.next` 
-- **Install Command:** Custom (configured in vercel.json)
+- **Framework:** Next.js (auto-detected)
+- **Build Command:** `npm run build` (default)
+- **Output Directory:** `.next` (default)
+- **Install Command:** `npm install` (default)
 - **Node Version:** 18.x
 
-**Important:** The build commands are pre-configured in each app's `vercel.json` file to handle the monorepo structure properly.
+**Important:** Each app now includes all necessary dependencies directly and will build independently.
 
 ### Step 3: Add Environment Variables
 Copy the environment variables from the sections above into each Vercel project's environment variables section.
@@ -129,9 +130,9 @@ Copy the environment variables from the sections above into each Vercel project'
 - Ensure **Root Directory** points to the correct app folder
 
 ### "Module not found: Can't resolve '@cloudreno/ui'" or similar workspace errors
-- This is resolved by the custom build commands in `vercel.json`
-- The build commands install dependencies from the monorepo root
-- Each app's `vercel.json` handles workspace package resolution
+- ✅ **Fixed**: Each app now includes all dependencies directly
+- Workspace packages are still linked but dependencies are explicit
+- Apps build independently without complex monorepo commands
 
 ### Build Failures
 - Check that all environment variables are set correctly
