@@ -75,21 +75,29 @@ export async function POST(request: Request) {
       );
     }
     
-    // TODO: Generate signed URL for R2 upload
-    // TODO: Upload file to R2
-    // TODO: Store file record in database
+    // Generate signed URL for R2 upload
+    const { generateSignedUploadUrl } = await import('@cloudreno/lib');
     
-    const mockFileId = `file_${Date.now()}`;
-    const mockFileUrl = `https://files.cloudrenovation.ca/${mockFileId}`;
+    const uploadOptions = {
+      fileName: file.name,
+      fileSize: file.size,
+      contentType: file.type,
+      fileType: 'document' as const, // Default, should be passed from client
+      organizationId: 'default-org', // Should be passed from authenticated user
+    };
+
+    const signedUpload = await generateSignedUploadUrl(uploadOptions);
     
     const response = {
       success: true,
-      fileId: mockFileId,
+      fileId: `file_${Date.now()}`,
       fileName: file.name,
       fileSize: file.size,
       fileType: file.type,
-      url: mockFileUrl,
-      expiresAt: new Date(Date.now() + 15 * 60 * 1000).toISOString() // 15 minutes
+      uploadUrl: signedUpload.uploadUrl,
+      publicUrl: signedUpload.publicUrl,
+      fileKey: signedUpload.fileKey,
+      expiresIn: signedUpload.expiresIn
     };
     
     logRequest({

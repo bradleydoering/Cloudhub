@@ -1,0 +1,412 @@
+/* Mobile-specific styles for CloudHub customer portal */
+
+/* Mobile Navigation */
+@media (max-width: 768px) {
+  .navbar {
+    padding: 0 1rem;
+    height: auto;
+    min-height: 4rem;
+  }
+  
+  .navbar .container-custom {
+    max-width: 100%;
+    padding: 0;
+  }
+
+  .navbar .flex {
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+
+  .navbar h1 {
+    font-size: 1rem;
+  }
+
+  .navbar-brand {
+    flex-direction: row;
+    align-items: center;
+    gap: 0.75rem;
+    flex: 1;
+  }
+
+  .navbar-user {
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 0.25rem;
+  }
+
+  .navbar-user .text-sm {
+    font-size: 0.75rem;
+  }
+
+  .navbar-user .text-xs {
+    font-size: 0.625rem;
+  }
+}
+
+/* Mobile Project Overview */
+@media (max-width: 768px) {
+  .project-overview-grid {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+  }
+  
+  .project-overview-card {
+    padding: 1rem;
+  }
+  
+  .project-overview-stats {
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+  }
+}
+
+/* Mobile Tab Navigation */
+@media (max-width: 640px) {
+  .tab-nav {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+    padding: 0 1rem;
+    margin: 0 -1rem;
+  }
+  
+  .tab-nav::-webkit-scrollbar {
+    display: none;
+  }
+  
+  .tab-button {
+    white-space: nowrap;
+    flex-shrink: 0;
+    min-width: auto;
+    padding: 0.75rem 1rem;
+    font-size: 0.875rem;
+  }
+  
+  .tab-button span:first-child {
+    margin-right: 0.25rem;
+  }
+}
+
+/* Mobile Timeline */
+@media (max-width: 640px) {
+  .timeline-phase {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.75rem;
+  }
+  
+  .timeline-indicator {
+    width: 8px;
+    height: 8px;
+    margin-right: 0;
+    margin-bottom: 0.5rem;
+  }
+  
+  .timeline-content {
+    padding-left: 0;
+  }
+  
+  .timeline-meta {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.25rem;
+    font-size: 0.75rem;
+  }
+  
+  .progress-bar {
+    height: 4px;
+    border-radius: 2px;
+  }
+}
+
+/* Mobile Activity Feed */
+@media (max-width: 640px) {
+  .activity-item {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.75rem;
+    padding: 1rem;
+  }
+  
+  .activity-icon {
+    font-size: 1.25rem;
+  }
+  
+  .activity-content h4 {
+    font-size: 0.9rem;
+    line-height: 1.3;
+  }
+  
+  .activity-meta {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.25rem;
+    font-size: 0.7rem;
+  }
+}
+
+/* Mobile Documents Grid */
+@media (max-width: 768px) {
+  .documents-grid {
+    grid-template-columns: 1fr 1fr;
+    gap: 0.75rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .documents-grid {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+  }
+}
+
+.document-card {
+  padding: 0.75rem;
+}
+
+.document-card h4 {
+  font-size: 0.875rem;
+  line-height: 1.2;
+}
+
+.document-meta {
+  font-size: 0.75rem;
+}
+
+/* Mobile Change Orders */
+@media (max-width: 768px) {
+  .change-order-card {
+    padding: 1rem;
+  }
+  
+  .change-order-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.75rem;
+  }
+  
+  .change-order-amount {
+    font-size: 1.5rem;
+  }
+  
+  .change-order-actions {
+    flex-direction: column;
+    gap: 0.5rem;
+    width: 100%;
+  }
+  
+  .change-order-details {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+  }
+}
+
+/* Mobile Photo Gallery */
+@media (max-width: 768px) {
+  .photo-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0.5rem;
+  }
+  
+  .photo-upload {
+    padding: 2rem 1rem;
+  }
+  
+  .photo-upload h4 {
+    font-size: 1rem;
+  }
+  
+  .photo-filters {
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+  
+  .photo-filter-button {
+    font-size: 0.75rem;
+    padding: 0.5rem 0.75rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .photo-grid {
+    grid-template-columns: 1fr;
+    gap: 0.75rem;
+  }
+}
+
+/* Mobile Photo Modal */
+@media (max-width: 640px) {
+  .photo-modal {
+    margin: 0;
+    width: 100vw;
+    height: 100vh;
+    border-radius: 0;
+    max-width: none;
+    max-height: none;
+  }
+  
+  .photo-modal img {
+    max-height: 70vh;
+    width: auto;
+    max-width: 100%;
+  }
+  
+  .photo-modal-info {
+    padding: 1rem;
+  }
+  
+  .photo-modal-meta {
+    grid-template-columns: 1fr;
+    gap: 0.5rem;
+    font-size: 0.875rem;
+  }
+}
+
+/* Mobile Invoice Management */
+@media (max-width: 768px) {
+  .invoice-summary {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+  }
+  
+  .invoice-card {
+    padding: 1rem;
+  }
+  
+  .invoice-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.75rem;
+  }
+  
+  .invoice-amount {
+    font-size: 1.5rem;
+  }
+  
+  .invoice-actions {
+    flex-direction: column;
+    gap: 0.5rem;
+    width: 100%;
+  }
+  
+  .payment-options {
+    grid-template-columns: 1fr;
+    gap: 0.5rem;
+  }
+}
+
+/* Mobile Search and Filters */
+@media (max-width: 640px) {
+  .search-filters {
+    flex-direction: column;
+    gap: 1rem;
+  }
+  
+  .search-input {
+    width: 100%;
+  }
+  
+  .filter-buttons {
+    justify-content: flex-start;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    gap: 0.5rem;
+    padding-bottom: 0.25rem;
+  }
+  
+  .filter-button {
+    white-space: nowrap;
+    flex-shrink: 0;
+    font-size: 0.875rem;
+    padding: 0.5rem 0.75rem;
+  }
+}
+
+/* Mobile Utility Classes */
+.mobile-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.mobile-center {
+  text-align: center;
+  justify-content: center;
+  align-items: center;
+}
+
+.mobile-full-width {
+  width: 100%;
+}
+
+@media (max-width: 768px) {
+  .mobile-p-0 { padding: 0; }
+  .mobile-p-1 { padding: 0.25rem; }
+  .mobile-p-2 { padding: 0.5rem; }
+  .mobile-p-3 { padding: 0.75rem; }
+  .mobile-p-4 { padding: 1rem; }
+  
+  .mobile-m-0 { margin: 0; }
+  .mobile-m-1 { margin: 0.25rem; }
+  .mobile-m-2 { margin: 0.5rem; }
+  .mobile-m-3 { margin: 0.75rem; }
+  .mobile-m-4 { margin: 1rem; }
+  
+  .mobile-text-xs { font-size: 0.75rem; }
+  .mobile-text-sm { font-size: 0.875rem; }
+  .mobile-text-base { font-size: 1rem; }
+  .mobile-text-lg { font-size: 1.125rem; }
+  
+  .mobile-hidden { display: none !important; }
+  .mobile-block { display: block !important; }
+  .mobile-flex { display: flex !important; }
+  .mobile-grid { display: grid !important; }
+}
+
+/* Touch-friendly interactions */
+@media (max-width: 768px) {
+  button,
+  .button,
+  a[role="button"],
+  input[type="submit"],
+  input[type="button"] {
+    min-height: 48px;
+    min-width: 48px;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+  }
+  
+  input,
+  select,
+  textarea {
+    min-height: 48px;
+    font-size: 16px; /* Prevents zoom on iOS */
+    border-radius: 8px;
+  }
+  
+  .touch-target {
+    min-height: 48px;
+    min-width: 48px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+}
+
+/* iOS safe areas */
+@supports (padding-top: env(safe-area-inset-top)) {
+  .ios-safe-top {
+    padding-top: max(1rem, env(safe-area-inset-top));
+  }
+  
+  .ios-safe-bottom {
+    padding-bottom: max(1rem, env(safe-area-inset-bottom));
+  }
+  
+  .navbar.ios-safe-top {
+    padding-top: max(0.5rem, env(safe-area-inset-top));
+  }
+}

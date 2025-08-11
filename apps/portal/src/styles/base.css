@@ -4,6 +4,7 @@
 
 @import './layout.css';
 @import './navigation.css';
+@import './mobile.css';
 
 :root {
   scroll-behavior: smooth;
