@@ -19,6 +19,8 @@ Shared code lives under **packages/** (ui, config, lib). The product spec lives 
 - **Payments:** Stripe
 - **Email:** Postmark/Resend
 - **Build:** Turborepo, npm workspaces
+- **Error Tracking:** Sentry (optional)
+- **Search:** pgvector (v1.1)
 
 ## Monorepo Layout
 ```
@@ -34,16 +36,26 @@ docs/
   spec-cloudhub-v1.md
 ```
 
+## Requirements
+- Node 18+ (or 20+)
+- npm or pnpm (preferred)
+- Turbo (`npm install -g turbo`)
+- Supabase CLI (optional for local DB): https://supabase.com/docs/guides/cli
+
 ## Development Commands
 
 ### Initial setup
 ```bash
 npm install
+# or
+pnpm install
 ```
 
 ### Development (run all apps)
 ```bash
 npm run dev
+# or
+pnpm dev
 ```
 
 ### Run individual apps
@@ -68,7 +80,12 @@ npm run format
 
 ## Environment Setup
 
-1. Copy `.env.example` to `.env` and configure your environment variables
+1. Copy `.env.example` to `.env.local` files for each app:
+   ```bash
+   cp .env.example apps/cloudhub/.env.local
+   cp .env.example apps/portal/.env.local
+   cp .env.example apps/api/.env.local
+   ```
 2. Set up your Supabase project and add the connection details
 3. Configure Stripe, R2, and email service credentials
 
@@ -80,6 +97,20 @@ The platform uses a subdomain-first approach:
 - API: `https://api.cloudrenovation.ca`
 - Files: `https://files.cloudrenovation.ca` (R2 + CDN)
 
+> **Tip:** In Vercel, create three projects and point domains as above. Add environment variables from `.env.example` in each Vercel project (no secrets in git).
+
 ## Documentation
 
 See `/docs/spec-cloudhub-v1.md` for the complete specification and requirements.
+
+## Contributing
+- Create a branch per feature: `feature/<short-name>`
+- Open a PR; Vercel preview deploys will attach to the PR
+- Keep changes scoped to one app when possible; shared code goes in `packages/`
+
+## License
+TBD (private)
+
+---
+
+**Owner:** Brad · **Spec:** `/docs/spec-cloudhub-v1.md` · **Last updated:** 2025-08-11
