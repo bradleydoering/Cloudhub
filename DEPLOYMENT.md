@@ -137,7 +137,11 @@ Copy the environment variables from the sections above into each Vercel project'
 ### Build Failures
 - Check that all environment variables are set correctly
 - Verify the **Root Directory** setting matches the app structure
-- Ensure Vercel is using the custom build commands from `vercel.json`
+
+### "500: INTERNAL_SERVER_ERROR - MIDDLEWARE_INVOCATION_FAILED"
+- ✅ **Fixed**: Middleware now handles missing environment variables gracefully
+- Ensure Supabase environment variables are set in Vercel project settings
+- Middleware will skip authentication if environment variables are missing
 
 ## Stripe Integration (Optional)
 
