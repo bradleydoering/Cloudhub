@@ -2,10 +2,21 @@
 
 ## Vercel Setup
 
+**Important:** This is a **monorepo** with multiple apps. You need to create **three separate Vercel projects**, each pointing to a different subdirectory.
+
+### Monorepo Configuration
+
+For each Vercel project, configure these settings:
+- **Root Directory:** Set to the specific app directory (e.g., `apps/cloudhub`)
+- **Build Command:** `npm run build` 
+- **Output Directory:** `.next`
+- **Install Command:** `npm install`
+- **Node Version:** 18.x or 20.x
+
 Create three separate Vercel projects for each app:
 
 ### 1. Staff App (cloudhub.cloudrenovation.ca)
-- **Project:** Connect to `/apps/cloudhub`
+- **Root Directory:** `apps/cloudhub`
 - **Domain:** `cloudhub.cloudrenovation.ca`
 - **Environment Variables:**
 ```
@@ -17,7 +28,7 @@ NODE_ENV=production
 ```
 
 ### 2. Customer Portal (portal.cloudrenovation.ca)
-- **Project:** Connect to `/apps/portal`
+- **Root Directory:** `apps/portal`
 - **Domain:** `portal.cloudrenovation.ca`
 - **Environment Variables:**
 ```
@@ -29,7 +40,7 @@ NODE_ENV=production
 ```
 
 ### 3. API Server (api.cloudrenovation.ca)
-- **Project:** Connect to `/apps/api`
+- **Root Directory:** `apps/api`
 - **Domain:** `api.cloudrenovation.ca`
 - **Environment Variables:**
 ```
@@ -76,13 +87,48 @@ Resend is configured for transactional emails:
 - **API Key:** Set and ready to use
 - **Domain:** Configure your sending domain in Resend dashboard
 
+## Vercel Deployment Steps
+
+### Step 1: Create Vercel Projects
+1. Go to [vercel.com](https://vercel.com) and sign in
+2. Click "New Project" 
+3. Import your GitHub repo: `bradleydoering/Cloudhub`
+4. **Important:** For each project, set the **Root Directory** to the specific app:
+   - Staff App: `apps/cloudhub`
+   - Portal: `apps/portal` 
+   - API: `apps/api`
+
+### Step 2: Configure Each Project
+For each project in Vercel settings:
+- **Build Command:** `npm run build`
+- **Output Directory:** `.next` 
+- **Install Command:** `npm install`
+- **Node Version:** 18.x
+
+### Step 3: Add Environment Variables
+Copy the environment variables from the sections above into each Vercel project's environment variables section.
+
+### Step 4: Deploy
+- Each project will auto-deploy when you push to the main branch
+- Configure custom domains in Vercel project settings
+
 ## Next Steps
 
-1. **Vercel Projects:** Create the three projects in Vercel dashboard
-2. **Domain Configuration:** Point your domains to the Vercel projects
+1. **Vercel Projects:** ✅ Create the three projects as described above
+2. **Domain Configuration:** Point your domains to the Vercel projects  
 3. **Database Migration:** Run any pending database migrations
 4. **SSL Certificates:** Vercel will handle SSL automatically
 5. **Monitoring:** Consider adding Sentry for error tracking
+
+## Troubleshooting
+
+### "No Output Directory named 'public' found"
+- Ensure **Output Directory** is set to `.next` (not `public`)
+- Ensure **Root Directory** points to the correct app folder
+
+### Build Failures
+- Check that all environment variables are set correctly
+- Verify the **Root Directory** setting matches the app structure
 
 ## Stripe Integration (Optional)
 
