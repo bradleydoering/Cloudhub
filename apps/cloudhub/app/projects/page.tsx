@@ -213,6 +213,122 @@ function ProjectDetail({ project, activeTab, setActiveTab }: {
             </div>
           </div>
         );
+      case 'documents':
+        return (
+          <div className="bg-card border border-border p-6 [clip-path:polygon(0.5rem_0%,100%_0%,100%_calc(100%-0.5rem),calc(100%-0.5rem)_100%,0%_100%,0%_0.5rem)]">
+            <div className="flex justify-between items-center mb-6">
+              <h4 className="font-space font-medium text-navy">Project Documents</h4>
+              <Button variant="coral" size="sm">Upload Document</Button>
+            </div>
+            <div className="space-y-3">
+              {[
+                { name: 'Contract Agreement.pdf', type: 'PDF', size: '2.4 MB', date: '2025-07-01' },
+                { name: 'Electrical Plans.dwg', type: 'CAD', size: '5.1 MB', date: '2025-07-05' },
+                { name: 'Material List.xlsx', type: 'Excel', size: '856 KB', date: '2025-07-10' },
+                { name: 'Progress Photos - Week 2.zip', type: 'Archive', size: '15.2 MB', date: '2025-07-15' },
+              ].map((doc, index) => (
+                <div key={index} className="flex items-center justify-between p-4 border border-border rounded-lg hover:bg-muted/50 transition-colors">
+                  <div className="flex items-center space-x-3">
+                    <div className="w-10 h-10 bg-muted rounded-lg flex items-center justify-center">
+                      <span className="text-sm font-medium">{doc.type}</span>
+                    </div>
+                    <div>
+                      <p className="font-medium text-sm">{doc.name}</p>
+                      <p className="text-xs text-muted-foreground">{doc.size} • {new Date(doc.date).toLocaleDateString()}</p>
+                    </div>
+                  </div>
+                  <div className="flex space-x-2">
+                    <Button variant="outline" size="sm">Download</Button>
+                    <Button variant="outline" size="sm">Share</Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      case 'change-orders':
+        return (
+          <div className="bg-card border border-border p-6 [clip-path:polygon(0.5rem_0%,100%_0%,100%_calc(100%-0.5rem),calc(100%-0.5rem)_100%,0%_100%,0%_0.5rem)]">
+            <div className="flex justify-between items-center mb-6">
+              <h4 className="font-space font-medium text-navy">Change Orders</h4>
+              <Button variant="coral" size="sm">Create Change Order</Button>
+            </div>
+            <div className="space-y-4">
+              {[
+                { id: 'CO-001', description: 'Upgrade to quartz countertops', amount: 2500, status: 'approved', date: '2025-07-12' },
+                { id: 'CO-002', description: 'Add under-cabinet lighting', amount: 850, status: 'pending', date: '2025-07-18' },
+              ].map((co, index) => (
+                <div key={index} className="p-4 border border-border rounded-lg">
+                  <div className="flex justify-between items-start mb-2">
+                    <div>
+                      <h5 className="font-medium">{co.id}: {co.description}</h5>
+                      <p className="text-sm text-muted-foreground">Submitted {new Date(co.date).toLocaleDateString()}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="font-space font-semibold text-coral">+${co.amount.toLocaleString()}</p>
+                      <span className={`text-xs px-2 py-1 rounded-full ${
+                        co.status === 'approved' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'
+                      }`}>
+                        {co.status.toUpperCase()}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      case 'photos':
+        return (
+          <div className="bg-card border border-border p-6 [clip-path:polygon(0.5rem_0%,100%_0%,100%_calc(100%-0.5rem),calc(100%-0.5rem)_100%,0%_100%,0%_0.5rem)]">
+            <div className="flex justify-between items-center mb-6">
+              <h4 className="font-space font-medium text-navy">Project Photos</h4>
+              <Button variant="coral" size="sm">Upload Photos</Button>
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+              {[1, 2, 3, 4, 5, 6, 7, 8].map((photo) => (
+                <div key={photo} className="aspect-square bg-muted rounded-lg overflow-hidden cursor-pointer hover:opacity-80 transition-opacity">
+                  <div className="w-full h-full bg-gradient-to-br from-coral/20 to-coral/40 flex items-center justify-center">
+                    <span className="text-muted-foreground">📷</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      case 'invoices':
+        return (
+          <div className="bg-card border border-border p-6 [clip-path:polygon(0.5rem_0%,100%_0%,100%_calc(100%-0.5rem),calc(100%-0.5rem)_100%,0%_100%,0%_0.5rem)]">
+            <div className="flex justify-between items-center mb-6">
+              <h4 className="font-space font-medium text-navy">Invoices & Payments</h4>
+              <Button variant="coral" size="sm">Create Invoice</Button>
+            </div>
+            <div className="space-y-4">
+              {[
+                { id: 'INV-001', description: 'Initial Payment (30%)', amount: 10500, status: 'paid', date: '2025-07-01', dueDate: '2025-07-01' },
+                { id: 'INV-002', description: 'Progress Payment (40%)', amount: 14000, status: 'paid', date: '2025-07-15', dueDate: '2025-07-15' },
+                { id: 'INV-003', description: 'Final Payment (30%)', amount: 10500, status: 'pending', date: '2025-08-01', dueDate: '2025-08-15' },
+              ].map((invoice, index) => (
+                <div key={index} className="flex items-center justify-between p-4 border border-border rounded-lg">
+                  <div>
+                    <h5 className="font-medium">{invoice.id}: {invoice.description}</h5>
+                    <p className="text-sm text-muted-foreground">
+                      Issued {new Date(invoice.date).toLocaleDateString()} • Due {new Date(invoice.dueDate).toLocaleDateString()}
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <p className="font-space font-semibold text-navy">${invoice.amount.toLocaleString()}</p>
+                    <span className={`text-xs px-2 py-1 rounded-full ${
+                      invoice.status === 'paid' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'
+                    }`}>
+                      {invoice.status.toUpperCase()}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        );
       default:
         return (
           <div className="bg-card border border-border p-6 [clip-path:polygon(0.5rem_0%,100%_0%,100%_calc(100%-0.5rem),calc(100%-0.5rem)_100%,0%_100%,0%_0.5rem)]">
