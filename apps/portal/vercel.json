@@ -1,8 +1,8 @@
 {
   "framework": "nextjs",
-  "buildCommand": "npm run build",
+  "buildCommand": "cd ../.. && npm install && npx turbo build --filter=@cloudreno/portal",
   "outputDirectory": ".next",
-  "installCommand": "npm install",
+  "installCommand": "cd ../.. && npm install",
   "devCommand": "npm run dev",
   "functions": {
     "app/**": {
