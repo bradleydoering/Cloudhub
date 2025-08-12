@@ -57,10 +57,10 @@ const tabs = [
 
 function ProjectCard({ project, onSelect }: { project: Project, onSelect: () => void }) {
   const statusColors = {
-    'not-started': 'bg-gray-100 text-gray-800',
-    'in-progress': 'bg-blue-100 text-blue-800',
-    'on-hold': 'bg-yellow-100 text-yellow-800',
-    'completed': 'bg-green-100 text-green-800'
+    'not-started': 'bg-navy/10 text-navy',
+    'in-progress': 'bg-coral/10 text-coral',
+    'on-hold': 'bg-coral/20 text-coral',
+    'completed': 'bg-navy/20 text-navy'
   };
 
   return (
@@ -267,7 +267,7 @@ function ProjectDetail({ project, activeTab, setActiveTab }: {
                     <div className="text-right">
                       <p className="font-space font-semibold text-coral">+${co.amount.toLocaleString()}</p>
                       <span className={`text-xs px-2 py-1 rounded-full ${
-                        co.status === 'approved' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'
+                        co.status === 'approved' ? 'bg-navy/20 text-navy' : 'bg-coral/20 text-coral'
                       }`}>
                         {co.status.toUpperCase()}
                       </span>
@@ -319,7 +319,7 @@ function ProjectDetail({ project, activeTab, setActiveTab }: {
                   <div className="text-right">
                     <p className="font-space font-semibold text-navy">${invoice.amount.toLocaleString()}</p>
                     <span className={`text-xs px-2 py-1 rounded-full ${
-                      invoice.status === 'paid' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'
+                      invoice.status === 'paid' ? 'bg-navy/20 text-navy' : 'bg-coral/20 text-coral'
                     }`}>
                       {invoice.status.toUpperCase()}
                     </span>
@@ -459,7 +459,7 @@ export default function ProjectsPage() {
           <div className="text-sm text-muted-foreground">Average Progress</div>
         </div>
         <div className="bg-card border border-border p-4 [clip-path:polygon(0.5rem_0%,100%_0%,100%_calc(100%-0.5rem),calc(100%-0.5rem)_100%,0%_100%,0%_0.5rem)]">
-          <div className="text-2xl font-space font-semibold text-green-600">100%</div>
+          <div className="text-2xl font-space font-semibold text-navy">100%</div>
           <div className="text-sm text-muted-foreground">On Time Delivery</div>
         </div>
       </div>

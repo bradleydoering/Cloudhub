@@ -30,10 +30,10 @@ export default function Home() {
   const router = useRouter();
 
   const priorityColors = {
-    low: 'border-l-gray-400',
-    medium: 'border-l-blue-400',
-    high: 'border-l-orange-400',
-    urgent: 'border-l-red-400'
+    low: 'border-l-navy/40',
+    medium: 'border-l-navy/60',
+    high: 'border-l-coral/60',
+    urgent: 'border-l-coral'
   };
 
   return (
@@ -73,7 +73,7 @@ export default function Home() {
           <div className="text-sm text-muted-foreground">Active Projects</div>
         </div>
         <div className="bg-card border border-border p-4 [clip-path:polygon(0.5rem_0%,100%_0%,100%_calc(100%-0.5rem),calc(100%-0.5rem)_100%,0%_100%,0%_0.5rem)]">
-          <div className="text-2xl font-space font-semibold text-green-600">{mockStats.projectsCompleted}</div>
+          <div className="text-2xl font-space font-semibold text-navy">{mockStats.projectsCompleted}</div>
           <div className="text-sm text-muted-foreground">Completed</div>
         </div>
         <div className="bg-card border border-border p-4 [clip-path:polygon(0.5rem_0%,100%_0%,100%_calc(100%-0.5rem),calc(100%-0.5rem)_100%,0%_100%,0%_0.5rem)]">
@@ -134,7 +134,7 @@ export default function Home() {
                     <h4 className="font-medium text-navy text-sm mb-1">{project.title}</h4>
                     <p className="text-xs text-muted-foreground">{project.customer}</p>
                   </div>
-                  <span className="text-xs px-2 py-1 bg-blue-100 text-blue-800 rounded-full capitalize">
+                  <span className="text-xs px-2 py-1 bg-navy/10 text-navy rounded-full capitalize">
                     {project.status.replace('-', ' ')}
                   </span>
                 </div>

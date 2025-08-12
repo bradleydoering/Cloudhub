@@ -74,9 +74,9 @@ const mockCustomers: Customer[] = [
 
 function CustomerCard({ customer }: { customer: Customer }) {
   const statusColors = {
-    active: 'bg-green-100 text-green-800',
-    inactive: 'bg-gray-100 text-gray-800',
-    prospect: 'bg-blue-100 text-blue-800'
+    active: 'bg-navy/20 text-navy',
+    inactive: 'bg-navy/10 text-navy',
+    prospect: 'bg-coral/10 text-coral'
   };
 
   return (
@@ -166,7 +166,7 @@ export default function CustomersPage() {
           <div className="text-sm text-muted-foreground">Total Customers</div>
         </div>
         <div className="bg-card border border-border p-4 [clip-path:polygon(0.5rem_0%,100%_0%,100%_calc(100%-0.5rem),calc(100%-0.5rem)_100%,0%_100%,0%_0.5rem)]">
-          <div className="text-2xl font-space font-semibold text-green-600">{activeCustomers}</div>
+          <div className="text-2xl font-space font-semibold text-navy">{activeCustomers}</div>
           <div className="text-sm text-muted-foreground">Active Customers</div>
         </div>
         <div className="bg-card border border-border p-4 [clip-path:polygon(0.5rem_0%,100%_0%,100%_calc(100%-0.5rem),calc(100%-0.5rem)_100%,0%_100%,0%_0.5rem)]">

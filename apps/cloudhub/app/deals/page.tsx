@@ -63,20 +63,20 @@ const mockDeals: Deal[] = [
 ];
 
 const stages = [
-  { id: 'new', name: 'New', color: 'bg-gray-100 text-gray-800' },
-  { id: 'qualified', name: 'Qualified', color: 'bg-blue-100 text-blue-800' },
-  { id: 'estimating', name: 'Estimating', color: 'bg-yellow-100 text-yellow-800' },
-  { id: 'proposal-sent', name: 'Proposal Sent', color: 'bg-purple-100 text-purple-800' },
-  { id: 'negotiation', name: 'Negotiation', color: 'bg-orange-100 text-orange-800' },
-  { id: 'closed-won', name: 'Closed Won', color: 'bg-green-100 text-green-800' },
+  { id: 'new', name: 'New', color: 'bg-navy/10 text-navy' },
+  { id: 'qualified', name: 'Qualified', color: 'bg-navy/15 text-navy' },
+  { id: 'estimating', name: 'Estimating', color: 'bg-coral/10 text-coral' },
+  { id: 'proposal-sent', name: 'Proposal Sent', color: 'bg-coral/15 text-coral' },
+  { id: 'negotiation', name: 'Negotiation', color: 'bg-coral/20 text-coral' },
+  { id: 'closed-won', name: 'Closed Won', color: 'bg-navy/20 text-navy' },
 ];
 
 function DealCard({ deal }: { deal: Deal }) {
   const priorityColors = {
-    low: 'border-l-gray-400',
-    medium: 'border-l-blue-400',
-    high: 'border-l-orange-400',
-    urgent: 'border-l-red-400'
+    low: 'border-l-navy/40',
+    medium: 'border-l-navy/60',
+    high: 'border-l-coral/60',
+    urgent: 'border-l-coral'
   };
 
   return (
@@ -180,7 +180,7 @@ export default function DealsPage() {
           <div className="text-sm text-muted-foreground">Average Deal Size</div>
         </div>
         <div className="bg-card border border-border p-4 [clip-path:polygon(0.5rem_0%,100%_0%,100%_calc(100%-0.5rem),calc(100%-0.5rem)_100%,0%_100%,0%_0.5rem)]">
-          <div className="text-2xl font-space font-semibold text-green-600">78%</div>
+          <div className="text-2xl font-space font-semibold text-navy">78%</div>
           <div className="text-sm text-muted-foreground">Close Rate</div>
         </div>
       </div>

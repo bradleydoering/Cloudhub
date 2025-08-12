@@ -31,8 +31,8 @@
   --accent: 220 23% 97%;
   --accent-foreground: 222 47% 9%;
 
-  --destructive: 0 84% 60%;
-  --destructive-foreground: 210 40% 98%;
+  --destructive: 14 100% 62%;          /* Use coral for destructive */
+  --destructive-foreground: 0 0% 100%;
 
   --border: 216 32% 91%;
   --input: 216 32% 91%;
@@ -101,6 +101,12 @@ body, p {
 .font-space { font-family: var(--font-space-grotesk); }
 .font-inter { font-family: var(--font-inter); }
 .font-mono  { font-family: var(--font-jetbrains-mono); }
+
+/* Dot grid pattern for backgrounds */
+.dot-grid-bg {
+  background-image: radial-gradient(circle, #E0E7ED 1px, transparent 1px);
+  background-size: 24px 24px;
+}
 
 /* Base styles */
 body {

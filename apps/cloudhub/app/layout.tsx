@@ -15,58 +15,77 @@ export default function RootLayout({
   return (
     <html lang="en" className={`${spaceGrotesk.variable} ${inter.variable} ${jetbrainsMono.variable}`}>
       <body className="font-inter">
-        <div className="min-h-screen bg-background">
-          <nav className="navbar navbar--glass bg-white/90 backdrop-blur-glass border-b border-border">
-            <div className="container-custom">
-              <div className="flex justify-between h-16">
-                <div className="flex items-center">
-                  <a href="/" className="flex items-center">
-                    <img 
-                      src="https://img.cloudrenovation.ca/Cloud%20Renovation%20logos/Cloud_Renovation_Logo-removebg-preview.png"
-                      alt="CloudReno"
-                      className="h-8 md:h-12"
-                    />
-                    <div className="ml-3 hidden sm:block">
-                      <div className="text-sm font-space font-semibold text-navy">CloudHub</div>
-                      <div className="text-xs text-muted-foreground">Staff Portal</div>
-                    </div>
-                  </a>
-                  <div className="ml-8 hidden md:flex space-x-6">
-                    <a href="/" className="text-navy hover:text-coral transition font-medium px-3 py-2 rounded-lg hover:bg-coral/10">Dashboard</a>
-                    <a href="/deals" className="text-navy hover:text-coral transition font-medium px-3 py-2 rounded-lg hover:bg-coral/10">Deals</a>
-                    <a href="/projects" className="text-navy hover:text-coral transition font-medium px-3 py-2 rounded-lg hover:bg-coral/10">Projects</a>
-                    <a href="/customers" className="text-navy hover:text-coral transition font-medium px-3 py-2 rounded-lg hover:bg-coral/10">Customers</a>
-                    <a href="/settings" className="text-navy hover:text-coral transition font-medium px-3 py-2 rounded-lg hover:bg-coral/10">Settings</a>
-                  </div>
+        <div className="min-h-screen bg-background dot-grid-bg flex">
+          {/* Sidebar */}
+          <div className="w-64 bg-navy flex-shrink-0 flex flex-col">
+            {/* Logo */}
+            <div className="p-6 border-b border-white/10">
+              <a href="/" className="flex items-center">
+                <img 
+                  src="https://img.cloudrenovation.ca/Cloud%20Renovation%20logos/Cloud_Renovation_Logo-removebg-preview.png"
+                  alt="CloudReno"
+                  className="h-8"
+                />
+                <div className="ml-3">
+                  <div className="text-sm font-space font-semibold text-white">CloudHub</div>
+                  <div className="text-xs text-white/60">Staff Portal</div>
                 </div>
-                <div className="flex items-center space-x-4">
-                  <div className="hidden sm:flex items-center space-x-3">
-                    <select className="text-sm border border-input bg-background text-foreground px-3 py-1.5 rounded-lg font-medium [clip-path:polygon(0.25rem_0%,100%_0%,100%_calc(100%-0.25rem),calc(100%-0.25rem)_100%,0%_100%,0%_0.25rem)]">
-                      <option>CloudReno North Vancouver</option>
-                      <option>CloudReno Vancouver</option>
-                      <option>CloudReno Richmond</option>
-                    </select>
-                    <div className="flex items-center space-x-2 text-sm text-muted-foreground">
-                      <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                      <span className="hidden lg:block">Online</span>
-                    </div>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <div className="w-8 h-8 bg-coral rounded-full flex items-center justify-center text-white font-medium text-sm">
-                      SC
-                    </div>
-                    <div className="hidden sm:block text-sm">
-                      <div className="font-medium text-navy">Sarah Chen</div>
-                      <div className="text-xs text-muted-foreground">Project Manager</div>
-                    </div>
-                  </div>
+              </a>
+            </div>
+
+            {/* Navigation */}
+            <nav className="flex-1 p-4">
+              <div className="space-y-2">
+                <a href="/" className="flex items-center px-4 py-3 text-white/80 hover:text-white hover:bg-white/10 rounded-lg transition-colors font-medium">
+                  <span className="mr-3">📊</span>
+                  Dashboard
+                </a>
+                <a href="/deals" className="flex items-center px-4 py-3 text-white/80 hover:text-white hover:bg-white/10 rounded-lg transition-colors font-medium">
+                  <span className="mr-3">💼</span>
+                  Deals
+                </a>
+                <a href="/projects" className="flex items-center px-4 py-3 text-white/80 hover:text-white hover:bg-white/10 rounded-lg transition-colors font-medium">
+                  <span className="mr-3">🏗️</span>
+                  Projects
+                </a>
+                <a href="/customers" className="flex items-center px-4 py-3 text-white/80 hover:text-white hover:bg-white/10 rounded-lg transition-colors font-medium">
+                  <span className="mr-3">👥</span>
+                  Customers
+                </a>
+                <a href="/settings" className="flex items-center px-4 py-3 text-white/80 hover:text-white hover:bg-white/10 rounded-lg transition-colors font-medium">
+                  <span className="mr-3">⚙️</span>
+                  Settings
+                </a>
+              </div>
+            </nav>
+
+            {/* User Profile */}
+            <div className="p-4 border-t border-white/10">
+              <div className="flex items-center space-x-3">
+                <div className="w-10 h-10 bg-coral rounded-full flex items-center justify-center text-white font-medium text-sm">
+                  SC
+                </div>
+                <div className="flex-1">
+                  <div className="text-sm font-medium text-white">Sarah Chen</div>
+                  <div className="text-xs text-white/60">Project Manager</div>
                 </div>
               </div>
+              <div className="mt-3">
+                <select className="w-full text-xs border border-white/20 bg-white/10 text-white px-3 py-2 rounded-lg font-medium [clip-path:polygon(0.25rem_0%,100%_0%,100%_calc(100%-0.25rem),calc(100%-0.25rem)_100%,0%_100%,0%_0.25rem)]">
+                  <option>North Vancouver</option>
+                  <option>Vancouver</option>
+                  <option>Richmond</option>
+                </select>
+              </div>
             </div>
-          </nav>
-          <main className="container-custom pt-20 pb-8">
-            {children}
-          </main>
+          </div>
+
+          {/* Main Content */}
+          <div className="flex-1 flex flex-col">
+            <main className="flex-1 p-8">
+              {children}
+            </main>
+          </div>
         </div>
       </body>
     </html>
