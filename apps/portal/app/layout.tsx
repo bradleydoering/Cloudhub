@@ -17,7 +17,7 @@ export default function RootLayout({
       <body className="font-inter antialiased">
         <div className="min-h-screen bg-background dot-grid-bg flex">
           {/* Sidebar */}
-          <div className="w-64 bg-navy flex-shrink-0 flex flex-col">
+          <div className="w-64 bg-navy flex-shrink-0 flex flex-col fixed h-full z-10">
             {/* Logo */}
             <div className="p-6 border-b border-white/10">
               <div className="flex items-center">
@@ -77,7 +77,7 @@ export default function RootLayout({
           </div>
 
           {/* Main Content */}
-          <div className="flex-1 flex flex-col">
+          <div className="flex-1 flex flex-col ml-64">
             <main className="flex-1 p-8">
               {children}
             </main>

@@ -2,6 +2,10 @@
 
 import { useState } from 'react';
 import { Button } from '@cloudreno/ui';
+import Modal from '../../src/components/Modal';
+import DealDetailView from '../../src/components/DealDetailView';
+import ImportDealsForm from '../../src/components/ImportDealsForm';
+import NewDealForm from '../../src/components/NewDealForm';
 
 type Deal = {
   id: string;
@@ -71,7 +75,7 @@ const stages = [
   { id: 'closed-won', name: 'Closed Won', color: 'bg-navy/20 text-navy' },
 ];
 
-function DealCard({ deal }: { deal: Deal }) {
+function DealCard({ deal, onClick }: { deal: Deal, onClick: (deal: Deal) => void }) {
   const priorityColors = {
     low: 'border-l-navy/40',
     medium: 'border-l-navy/60',
@@ -80,7 +84,10 @@ function DealCard({ deal }: { deal: Deal }) {
   };
 
   return (
-    <div className={`bg-card border border-border p-4 border-l-4 ${priorityColors[deal.priority]} [clip-path:polygon(0.5rem_0%,100%_0%,100%_calc(100%-0.5rem),calc(100%-0.5rem)_100%,0%_100%,0%_0.5rem)] hover:shadow-md transition-shadow cursor-pointer`}>
+    <div 
+      className={`bg-card border border-border p-4 border-l-4 ${priorityColors[deal.priority]} [clip-path:polygon(0.5rem_0%,100%_0%,100%_calc(100%-0.5rem),calc(100%-0.5rem)_100%,0%_100%,0%_0.5rem)] hover:shadow-md transition-shadow cursor-pointer`}
+      onClick={() => onClick(deal)}
+    >
       <div className="flex items-start justify-between mb-3">
         <h4 className="font-space font-medium text-navy text-sm leading-tight">{deal.title}</h4>
         <span className="text-xs text-muted-foreground capitalize">{deal.priority}</span>
@@ -110,7 +117,12 @@ function DealCard({ deal }: { deal: Deal }) {
   );
 }
 
-function KanbanColumn({ stage, deals }: { stage: typeof stages[0], deals: Deal[] }) {
+function KanbanColumn({ stage, deals, onDealClick, onAddDeal }: { 
+  stage: typeof stages[0], 
+  deals: Deal[], 
+  onDealClick: (deal: Deal) => void,
+  onAddDeal: (stage: string) => void
+}) {
   return (
     <div className="flex-1 min-w-80">
       <div className="bg-muted p-3 mb-4 [clip-path:polygon(0.3rem_0%,100%_0%,100%_calc(100%-0.3rem),calc(100%-0.3rem)_100%,0%_100%,0%_0.3rem)]">
@@ -120,7 +132,12 @@ function KanbanColumn({ stage, deals }: { stage: typeof stages[0], deals: Deal[]
             <span className={`text-xs px-2 py-1 rounded-full ${stage.color} font-medium`}>
               {deals.length}
             </span>
-            <Button variant="ghost" size="sm" className="h-6 w-6 p-0">
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              className="h-6 w-6 p-0 hover:bg-coral/10"
+              onClick={() => onAddDeal(stage.id)}
+            >
               +
             </Button>
           </div>
@@ -129,7 +146,7 @@ function KanbanColumn({ stage, deals }: { stage: typeof stages[0], deals: Deal[]
       
       <div className="space-y-3">
         {deals.map(deal => (
-          <DealCard key={deal.id} deal={deal} />
+          <DealCard key={deal.id} deal={deal} onClick={onDealClick} />
         ))}
       </div>
     </div>
@@ -137,7 +154,12 @@ function KanbanColumn({ stage, deals }: { stage: typeof stages[0], deals: Deal[]
 }
 
 export default function DealsPage() {
-  const [deals] = useState<Deal[]>(mockDeals);
+  const [deals, setDeals] = useState<Deal[]>(mockDeals);
+  const [showNewDealModal, setShowNewDealModal] = useState(false);
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [showDealDetailModal, setShowDealDetailModal] = useState(false);
+  const [selectedDeal, setSelectedDeal] = useState<Deal | null>(null);
+  const [newDealStage, setNewDealStage] = useState<string>('new');
 
   const dealsByStage = stages.reduce((acc, stage) => {
     acc[stage.id] = deals.filter(deal => deal.stage === stage.id);
@@ -146,6 +168,53 @@ export default function DealsPage() {
 
   const totalValue = deals.reduce((sum, deal) => sum + deal.value, 0);
   const averageValue = totalValue / deals.length;
+
+  const handleNewDeal = (dealData: any) => {
+    const newDeal = {
+      ...dealData,
+      id: `deal-${Date.now()}`,
+      stage: newDealStage,
+      lastActivity: 'just now'
+    };
+    setDeals(prev => [...prev, newDeal]);
+    setShowNewDealModal(false);
+    setNewDealStage('new');
+  };
+
+  const handleImportDeals = (importedDeals: Deal[]) => {
+    setDeals(prev => [...prev, ...importedDeals]);
+    setShowImportModal(false);
+  };
+
+  const handleDealClick = (deal: Deal) => {
+    setSelectedDeal(deal);
+    setShowDealDetailModal(true);
+  };
+
+  const handleUpdateDeal = (updatedDeal: Deal) => {
+    setDeals(prev => prev.map(deal => 
+      deal.id === updatedDeal.id ? updatedDeal : deal
+    ));
+    setSelectedDeal(updatedDeal);
+  };
+
+  const handleDeleteDeal = (dealId: string) => {
+    setDeals(prev => prev.filter(deal => deal.id !== dealId));
+    setShowDealDetailModal(false);
+    setSelectedDeal(null);
+  };
+
+  const handleConvertToProject = (deal: Deal) => {
+    // In a real app, this would create a project and remove the deal
+    alert(`Converting "${deal.title}" to project. This feature will redirect to project creation.`);
+    setShowDealDetailModal(false);
+    setSelectedDeal(null);
+  };
+
+  const handleAddDealToStage = (stage: string) => {
+    setNewDealStage(stage);
+    setShowNewDealModal(true);
+  };
 
   return (
     <div className="space-y-6">
@@ -156,10 +225,10 @@ export default function DealsPage() {
           <p className="text-muted-foreground mt-1">Manage your renovation project opportunities</p>
         </div>
         <div className="flex gap-3 mt-4 sm:mt-0">
-          <Button variant="outline">
+          <Button variant="outline" onClick={() => setShowImportModal(true)}>
             Import Deals
           </Button>
-          <Button variant="coral">
+          <Button variant="coral" onClick={() => setShowNewDealModal(true)}>
             + New Deal
           </Button>
         </div>
@@ -193,10 +262,67 @@ export default function DealsPage() {
               key={stage.id}
               stage={stage}
               deals={dealsByStage[stage.id] || []}
+              onDealClick={handleDealClick}
+              onAddDeal={handleAddDealToStage}
             />
           ))}
         </div>
       </div>
+
+      {/* Modals */}
+      <Modal 
+        isOpen={showNewDealModal} 
+        onClose={() => {
+          setShowNewDealModal(false);
+          setNewDealStage('new');
+        }} 
+        title="Create New Deal"
+        size="lg"
+      >
+        <NewDealForm 
+          onSubmit={handleNewDeal}
+          onCancel={() => {
+            setShowNewDealModal(false);
+            setNewDealStage('new');
+          }}
+          initialStage={newDealStage}
+        />
+      </Modal>
+
+      <Modal 
+        isOpen={showImportModal} 
+        onClose={() => setShowImportModal(false)} 
+        title="Import Deals"
+        size="xl"
+      >
+        <ImportDealsForm 
+          onImport={handleImportDeals}
+          onCancel={() => setShowImportModal(false)}
+        />
+      </Modal>
+
+      {selectedDeal && (
+        <Modal 
+          isOpen={showDealDetailModal} 
+          onClose={() => {
+            setShowDealDetailModal(false);
+            setSelectedDeal(null);
+          }} 
+          title={`Deal Details: ${selectedDeal.title}`}
+          size="xl"
+        >
+          <DealDetailView 
+            deal={selectedDeal}
+            onClose={() => {
+              setShowDealDetailModal(false);
+              setSelectedDeal(null);
+            }}
+            onUpdate={handleUpdateDeal}
+            onDelete={handleDeleteDeal}
+            onConvertToProject={handleConvertToProject}
+          />
+        </Modal>
+      )}
     </div>
   );
 }
