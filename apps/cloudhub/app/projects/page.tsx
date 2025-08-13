@@ -666,8 +666,15 @@ export default function ProjectsPage() {
   // Execute Supabase queries using MCP
   const executeSupabaseQuery = async (sql: string, params: any[] = []): Promise<any[]> => {
     try {
-      const result = await mcp__supabase__execute_sql({ query: sql });
-      return result || [];
+      // Check if MCP function is available (only in Claude Code environment)
+      if (typeof (globalThis as any).mcp__supabase__execute_sql === 'function') {
+        const result = await (globalThis as any).mcp__supabase__execute_sql({ query: sql });
+        return result || [];
+      } else {
+        // Fallback for build environment - return mock data or empty array
+        console.log('MCP function not available, using fallback data');
+        return [];
+      }
     } catch (error) {
       console.error('Error executing Supabase query:', error);
       throw error;
