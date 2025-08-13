@@ -1,7 +1,11 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { Button } from '@cloudreno/ui';
+import { useNotificationHelpers } from '../../src/components/NotificationSystem';
+import { useDealUpdates, useRealTimeUpdates } from '../../src/hooks/useRealTimeUpdates';
+import SearchFilters, { useSearchFilters, filterData, FilterOption } from '../../src/components/SearchFilters';
+import BulkActions, { useBulkSelection, BulkSelectCheckbox, BulkAction } from '../../src/components/BulkActions';
 import Modal from '../../src/components/Modal';
 import DealDetailView from '../../src/components/DealDetailView';
 import ImportDealsForm from '../../src/components/ImportDealsForm';
@@ -75,7 +79,17 @@ const stages = [
   { id: 'closed-won', name: 'Closed Won', color: 'bg-navy/20 text-navy' },
 ];
 
-function DealCard({ deal, onClick }: { deal: Deal, onClick: (deal: Deal) => void }) {
+function DealCard({ 
+  deal, 
+  onClick, 
+  isSelected, 
+  onToggleSelect 
+}: { 
+  deal: Deal;
+  onClick: (deal: Deal) => void;
+  isSelected?: boolean;
+  onToggleSelect?: (id: string) => void;
+}) {
   const priorityColors = {
     low: 'border-l-navy/40',
     medium: 'border-l-navy/60',
@@ -85,11 +99,22 @@ function DealCard({ deal, onClick }: { deal: Deal, onClick: (deal: Deal) => void
 
   return (
     <div 
-      className={`bg-card border border-border p-4 border-l-4 ${priorityColors[deal.priority]} [clip-path:polygon(0.5rem_0%,100%_0%,100%_calc(100%-0.5rem),calc(100%-0.5rem)_100%,0%_100%,0%_0.5rem)] hover:shadow-md transition-shadow cursor-pointer`}
+      className={`bg-card border border-border p-4 border-l-4 ${priorityColors[deal.priority]} [clip-path:polygon(0.5rem_0%,100%_0%,100%_calc(100%-0.5rem),calc(100%-0.5rem)_100%,0%_100%,0%_0.5rem)] hover:shadow-md transition-shadow cursor-pointer ${
+        isSelected ? 'ring-2 ring-coral bg-coral/5' : ''
+      }`}
       onClick={() => onClick(deal)}
     >
       <div className="flex items-start justify-between mb-3">
-        <h4 className="font-space font-medium text-navy text-sm leading-tight">{deal.title}</h4>
+        <div className="flex items-center gap-2 flex-1">
+          {onToggleSelect && (
+            <BulkSelectCheckbox
+              checked={isSelected || false}
+              onChange={() => onToggleSelect(deal.id)}
+              className="mr-2"
+            />
+          )}
+          <h4 className="font-space font-medium text-navy text-sm leading-tight">{deal.title}</h4>
+        </div>
         <span className="text-xs text-muted-foreground capitalize">{deal.priority}</span>
       </div>
       
@@ -117,11 +142,20 @@ function DealCard({ deal, onClick }: { deal: Deal, onClick: (deal: Deal) => void
   );
 }
 
-function KanbanColumn({ stage, deals, onDealClick, onAddDeal }: { 
-  stage: typeof stages[0], 
-  deals: Deal[], 
-  onDealClick: (deal: Deal) => void,
-  onAddDeal: (stage: string) => void
+function KanbanColumn({ 
+  stage, 
+  deals, 
+  onDealClick, 
+  onAddDeal,
+  selectedIds,
+  onToggleSelect 
+}: { 
+  stage: typeof stages[0];
+  deals: Deal[];
+  onDealClick: (deal: Deal) => void;
+  onAddDeal: (stage: string) => void;
+  selectedIds?: Set<string>;
+  onToggleSelect?: (id: string) => void;
 }) {
   return (
     <div className="flex-1 min-w-80">
@@ -146,7 +180,13 @@ function KanbanColumn({ stage, deals, onDealClick, onAddDeal }: {
       
       <div className="space-y-3">
         {deals.map(deal => (
-          <DealCard key={deal.id} deal={deal} onClick={onDealClick} />
+          <DealCard 
+            key={deal.id} 
+            deal={deal} 
+            onClick={onDealClick}
+            isSelected={selectedIds?.has(deal.id)}
+            onToggleSelect={onToggleSelect}
+          />
         ))}
       </div>
     </div>
@@ -160,14 +200,216 @@ export default function DealsPage() {
   const [showDealDetailModal, setShowDealDetailModal] = useState(false);
   const [selectedDeal, setSelectedDeal] = useState<Deal | null>(null);
   const [newDealStage, setNewDealStage] = useState<string>('new');
+  
+  // Real-time updates and notifications
+  const { notifySuccess, notifyInfo, notifyError } = useNotificationHelpers();
+  const { isConnected } = useRealTimeUpdates({ enabled: true });
+  const { notifyDealStageChange, notifyNewDeal } = useDealUpdates();
+
+  // Search and filter state
+  const {
+    searchTerm,
+    setSearchTerm,
+    activeFilters,
+    showAdvanced,
+    handleFilterChange,
+    clearFilters,
+    toggleAdvanced
+  } = useSearchFilters();
+
+  // Define filter options for deals
+  const filterOptions: FilterOption[] = [
+    {
+      id: 'priority',
+      label: 'Priority',
+      type: 'select',
+      options: [
+        { value: 'low', label: 'Low' },
+        { value: 'medium', label: 'Medium' },
+        { value: 'high', label: 'High' },
+        { value: 'urgent', label: 'Urgent' }
+      ]
+    },
+    {
+      id: 'source',
+      label: 'Lead Source',
+      type: 'select',
+      options: [
+        { value: 'website', label: 'Website' },
+        { value: 'referral', label: 'Referral' },
+        { value: 'design-library', label: 'Design Library' },
+        { value: 'social-media', label: 'Social Media' },
+        { value: 'advertising', label: 'Advertising' }
+      ]
+    },
+    {
+      id: 'value',
+      label: 'Deal Value ($)',
+      type: 'number',
+      min: 0,
+      max: 500000
+    },
+    {
+      id: 'expectedClose',
+      label: 'Expected Close Date',
+      type: 'daterange'
+    }
+  ];
+
+  // Filter and search deals
+  const filteredDeals = useMemo(() => {
+    return filterData(
+      deals,
+      searchTerm,
+      activeFilters,
+      ['title', 'customer', 'source']
+    );
+  }, [deals, searchTerm, activeFilters]);
+
+  // Bulk selection state
+  const {
+    selectedIds,
+    selectedItems,
+    isAllSelected,
+    isIndeterminate,
+    toggleItem,
+    toggleAll,
+    clearSelection
+  } = useBulkSelection(filteredDeals);
+
+  // Define bulk actions for deals
+  const bulkActions: BulkAction[] = [
+    {
+      id: 'stage-qualified',
+      label: 'Mark Qualified',
+      icon: '✅',
+      variant: 'default'
+    },
+    {
+      id: 'stage-proposal-sent',
+      label: 'Send Proposal',
+      icon: '📄',
+      variant: 'default'
+    },
+    {
+      id: 'stage-closed-won',
+      label: 'Mark Won',
+      icon: '🎉',
+      variant: 'default'
+    },
+    {
+      id: 'convert-to-project',
+      label: 'Convert to Projects',
+      icon: '🚀',
+      variant: 'default',
+      requiresConfirmation: true,
+      confirmationTitle: 'Convert Deals to Projects',
+      confirmationMessage: 'This will convert the selected deals to active projects and remove them from the pipeline.'
+    },
+    {
+      id: 'export',
+      label: 'Export',
+      icon: '📊',
+      variant: 'secondary'
+    },
+    {
+      id: 'delete',
+      label: 'Delete',
+      icon: '🗑️',
+      variant: 'destructive',
+      requiresConfirmation: true,
+      confirmationTitle: 'Delete Deals',
+      confirmationMessage: 'Are you sure you want to delete the selected deals? This action cannot be undone.'
+    }
+  ];
 
   const dealsByStage = stages.reduce((acc, stage) => {
-    acc[stage.id] = deals.filter(deal => deal.stage === stage.id);
+    acc[stage.id] = filteredDeals.filter(deal => deal.stage === stage.id);
     return acc;
   }, {} as Record<string, Deal[]>);
 
-  const totalValue = deals.reduce((sum, deal) => sum + deal.value, 0);
-  const averageValue = totalValue / deals.length;
+  const totalValue = filteredDeals.reduce((sum, deal) => sum + deal.value, 0);
+  const averageValue = filteredDeals.length > 0 ? totalValue / filteredDeals.length : 0;
+
+  // Bulk action handler for deals
+  const handleBulkAction = async (actionId: string, selectedDeals: Deal[]) => {
+    try {
+      switch (actionId) {
+        case 'stage-qualified':
+          setDeals(prev => prev.map(d => 
+            selectedDeals.some(sd => sd.id === d.id) 
+              ? { ...d, stage: 'qualified' }
+              : d
+          ));
+          selectedDeals.forEach(deal => {
+            notifyDealStageChange(deal.id, deal.title, deal.stage, 'qualified');
+          });
+          notifySuccess('Deals Updated', `${selectedDeals.length} deals marked as qualified`);
+          break;
+
+        case 'stage-proposal-sent':
+          setDeals(prev => prev.map(d => 
+            selectedDeals.some(sd => sd.id === d.id) 
+              ? { ...d, stage: 'proposal-sent' }
+              : d
+          ));
+          selectedDeals.forEach(deal => {
+            notifyDealStageChange(deal.id, deal.title, deal.stage, 'proposal-sent');
+          });
+          notifySuccess('Proposals Sent', `${selectedDeals.length} proposals sent to clients`);
+          break;
+
+        case 'stage-closed-won':
+          setDeals(prev => prev.map(d => 
+            selectedDeals.some(sd => sd.id === d.id) 
+              ? { ...d, stage: 'closed-won' }
+              : d
+          ));
+          selectedDeals.forEach(deal => {
+            notifyDealStageChange(deal.id, deal.title, deal.stage, 'closed-won');
+          });
+          notifySuccess('Deals Won! 🎉', `${selectedDeals.length} deals marked as won`);
+          break;
+
+        case 'convert-to-project':
+          // Remove deals from pipeline
+          setDeals(prev => prev.filter(d => !selectedDeals.some(sd => sd.id === d.id)));
+          selectedDeals.forEach(deal => {
+            notifySuccess(
+              'Deal Converted! 🚀', 
+              `"${deal.title}" has been converted to a project`
+            );
+          });
+          break;
+
+        case 'export':
+          const csvContent = selectedDeals.map(d => 
+            `"${d.title}","${d.customer}","${d.value}","${d.stage}","${d.priority}","${d.source}","${new Date(d.expectedClose).toLocaleDateString()}"`
+          ).join('\n');
+          const header = 'Title,Customer,Value,Stage,Priority,Source,Expected Close\n';
+          const blob = new Blob([header + csvContent], { type: 'text/csv' });
+          const url = window.URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = `deals-export-${new Date().toISOString().split('T')[0]}.csv`;
+          a.click();
+          window.URL.revokeObjectURL(url);
+          notifySuccess('Export Complete', `${selectedDeals.length} deals exported to CSV`);
+          break;
+
+        case 'delete':
+          setDeals(prev => prev.filter(d => !selectedDeals.some(sd => sd.id === d.id)));
+          notifyInfo('Deals Deleted', `${selectedDeals.length} deals removed from pipeline`);
+          break;
+
+        default:
+          console.warn('Unknown bulk action:', actionId);
+      }
+    } catch (error) {
+      console.error('Bulk action failed:', error);
+      notifyError('Action Failed', 'Failed to complete bulk action. Please try again.');
+    }
+  };
 
   const handleNewDeal = (dealData: any) => {
     const newDeal = {
@@ -179,11 +421,18 @@ export default function DealsPage() {
     setDeals(prev => [...prev, newDeal]);
     setShowNewDealModal(false);
     setNewDealStage('new');
+    
+    // Notify about new deal creation
+    notifyNewDeal(newDeal.title, newDeal.value);
+    notifySuccess('Deal Created', `New deal "${newDeal.title}" has been added to the pipeline`);
   };
 
   const handleImportDeals = (importedDeals: Deal[]) => {
     setDeals(prev => [...prev, ...importedDeals]);
     setShowImportModal(false);
+    
+    // Notify about import
+    notifySuccess('Deals Imported', `Successfully imported ${importedDeals.length} deals`);
   };
 
   const handleDealClick = (deal: Deal) => {
@@ -192,23 +441,54 @@ export default function DealsPage() {
   };
 
   const handleUpdateDeal = (updatedDeal: Deal) => {
+    const previousDeal = deals.find(d => d.id === updatedDeal.id);
+    const stageChanged = previousDeal && previousDeal.stage !== updatedDeal.stage;
+    
     setDeals(prev => prev.map(deal => 
       deal.id === updatedDeal.id ? updatedDeal : deal
     ));
     setSelectedDeal(updatedDeal);
+    
+    // Notify about stage changes
+    if (stageChanged && previousDeal) {
+      notifyDealStageChange(
+        updatedDeal.id, 
+        updatedDeal.title, 
+        previousDeal.stage, 
+        updatedDeal.stage
+      );
+    }
+    
+    // General update notification
+    notifySuccess('Deal Updated', `${updatedDeal.title} has been updated successfully`);
   };
 
   const handleDeleteDeal = (dealId: string) => {
+    const dealToDelete = deals.find(d => d.id === dealId);
     setDeals(prev => prev.filter(deal => deal.id !== dealId));
     setShowDealDetailModal(false);
     setSelectedDeal(null);
+    
+    // Notify about deletion
+    if (dealToDelete) {
+      notifyInfo('Deal Deleted', `"${dealToDelete.title}" has been removed from the pipeline`);
+    }
   };
 
   const handleConvertToProject = (deal: Deal) => {
     // In a real app, this would create a project and remove the deal
-    alert(`Converting "${deal.title}" to project. This feature will redirect to project creation.`);
+    setDeals(prev => prev.filter(d => d.id !== deal.id));
     setShowDealDetailModal(false);
     setSelectedDeal(null);
+    
+    // Notify about successful conversion
+    notifySuccess(
+      'Deal Converted! 🎉', 
+      `"${deal.title}" has been converted to a project and moved to the Projects section`
+    );
+    
+    // Also trigger deal stage change to 'won'
+    notifyDealStageChange(deal.id, deal.title, deal.stage, 'won');
   };
 
   const handleAddDealToStage = (stage: string) => {
@@ -234,11 +514,34 @@ export default function DealsPage() {
         </div>
       </div>
 
+      {/* Search and Filters */}
+      <SearchFilters
+        searchTerm={searchTerm}
+        onSearchChange={setSearchTerm}
+        filters={filterOptions}
+        activeFilters={activeFilters}
+        onFilterChange={handleFilterChange}
+        onClearFilters={clearFilters}
+        showAdvanced={showAdvanced}
+        onToggleAdvanced={toggleAdvanced}
+      />
+
+      {/* Bulk Actions */}
+      <BulkActions
+        selectedItems={selectedItems}
+        onClearSelection={clearSelection}
+        actions={bulkActions}
+        onAction={handleBulkAction}
+        itemName="deals"
+      />
+
       {/* Stats */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <div className="bg-card border border-border p-4 [clip-path:polygon(0.5rem_0%,100%_0%,100%_calc(100%-0.5rem),calc(100%-0.5rem)_100%,0%_100%,0%_0.5rem)]">
-          <div className="text-2xl font-space font-semibold text-navy">{deals.length}</div>
-          <div className="text-sm text-muted-foreground">Active Deals</div>
+          <div className="text-2xl font-space font-semibold text-navy">{filteredDeals.length}</div>
+          <div className="text-sm text-muted-foreground">
+            {searchTerm || Object.keys(activeFilters).length > 0 ? 'Filtered Deals' : 'Active Deals'}
+          </div>
         </div>
         <div className="bg-card border border-border p-4 [clip-path:polygon(0.5rem_0%,100%_0%,100%_calc(100%-0.5rem),calc(100%-0.5rem)_100%,0%_100%,0%_0.5rem)]">
           <div className="text-2xl font-space font-semibold text-coral">${totalValue.toLocaleString()}</div>
@@ -264,6 +567,8 @@ export default function DealsPage() {
               deals={dealsByStage[stage.id] || []}
               onDealClick={handleDealClick}
               onAddDeal={handleAddDealToStage}
+              selectedIds={selectedIds}
+              onToggleSelect={toggleItem}
             />
           ))}
         </div>

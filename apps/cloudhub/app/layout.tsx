@@ -1,6 +1,9 @@
 import type { Metadata } from 'next'
 import { spaceGrotesk, inter, jetbrainsMono } from '../src/lib/fonts'
 import '../src/styles/base.css'
+import { NotificationProvider } from '../src/components/NotificationSystem'
+import { NotificationBell } from '../src/components/NotificationBell'
+import ErrorBoundary from '../src/components/ErrorBoundary'
 
 export const metadata: Metadata = {
   title: 'CloudHub — Staff Portal | CloudReno',
@@ -15,22 +18,26 @@ export default function RootLayout({
   return (
     <html lang="en" className={`${spaceGrotesk.variable} ${inter.variable} ${jetbrainsMono.variable}`}>
       <body className="font-inter">
-        <div className="min-h-screen bg-background dot-grid-bg flex">
+        <NotificationProvider>
+          <div className="min-h-screen bg-background dot-grid-bg flex">
           {/* Sidebar */}
           <div className="w-64 bg-navy flex-shrink-0 flex flex-col fixed h-full z-10">
             {/* Logo */}
             <div className="p-6 border-b border-white/10">
-              <a href="/" className="flex items-center">
-                <img 
-                  src="https://img.cloudrenovation.ca/Cloud%20Renovation%20logos/Cloud_Renovation_Logo-removebg-preview.png"
-                  alt="CloudReno"
-                  className="h-8"
-                />
-                <div className="ml-3">
-                  <div className="text-sm font-space font-semibold text-white">CloudHub</div>
-                  <div className="text-xs text-white/60">Staff Portal</div>
-                </div>
-              </a>
+              <div className="flex items-center justify-between">
+                <a href="/" className="flex items-center">
+                  <img 
+                    src="https://img.cloudrenovation.ca/Cloud%20Renovation%20logos/Cloud_Renovation_Logo-removebg-preview.png"
+                    alt="CloudReno"
+                    className="h-8"
+                  />
+                  <div className="ml-3">
+                    <div className="text-sm font-space font-semibold text-white">CloudHub</div>
+                    <div className="text-xs text-white/60">Staff Portal</div>
+                  </div>
+                </a>
+                <NotificationBell />
+              </div>
             </div>
 
             {/* Navigation */}
@@ -83,10 +90,13 @@ export default function RootLayout({
           {/* Main Content */}
           <div className="flex-1 flex flex-col ml-64">
             <main className="flex-1 p-8">
-              {children}
+              <ErrorBoundary>
+                {children}
+              </ErrorBoundary>
             </main>
           </div>
         </div>
+        </NotificationProvider>
       </body>
     </html>
   )

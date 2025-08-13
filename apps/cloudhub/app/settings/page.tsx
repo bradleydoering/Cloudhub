@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { Button, ErrorBoundary } from '@cloudreno/ui'
+import { useNotificationHelpers } from '../../src/components/NotificationSystem'
 
 const settingsSections = [
   { id: 'profile', name: 'Profile', icon: '👤' },
@@ -70,21 +71,48 @@ export default function SettingsPage() {
 }
 
 function ProfileSettings({ loading, setLoading }: { loading: boolean, setLoading: (loading: boolean) => void }) {
+  const { notifySuccess, notifyError } = useNotificationHelpers();
   const [profile, setProfile] = useState({
     firstName: 'Sarah',
     lastName: 'Chen',
     email: 'sarah.chen@cloudreno.com',
     phone: '+1 (604) 555-0123',
     role: 'Project Manager',
-    location: 'North Vancouver'
+    location: 'North Vancouver',
+    avatar: '',
+    timezone: 'America/Vancouver',
+    language: 'en'
   })
+  const [originalProfile, setOriginalProfile] = useState(profile)
+  const [hasChanges, setHasChanges] = useState(false)
+
+  const handleProfileChange = (field: string, value: string) => {
+    const updatedProfile = { ...profile, [field]: value };
+    setProfile(updatedProfile);
+    setHasChanges(JSON.stringify(updatedProfile) !== JSON.stringify(originalProfile));
+  }
 
   const handleSave = async () => {
-    setLoading(true)
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 2000))
-    setLoading(false)
-    // Show success message
+    try {
+      setLoading(true)
+      // Simulate API call to save profile
+      await new Promise(resolve => setTimeout(resolve, 1500))
+      
+      // Update original profile to reflect saved state
+      setOriginalProfile(profile)
+      setHasChanges(false)
+      
+      notifySuccess('Profile Updated', 'Your profile has been updated successfully')
+    } catch (error) {
+      notifyError('Update Failed', 'Failed to update profile. Please try again.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleCancel = () => {
+    setProfile(originalProfile)
+    setHasChanges(false)
   }
 
   return (
@@ -96,34 +124,51 @@ function ProfileSettings({ loading, setLoading }: { loading: boolean, setLoading
         </p>
       </div>
 
+      {/* Profile Avatar */}
+      <div className="flex items-center space-x-6 pb-6 border-b border-gray-200">
+        <div className="w-20 h-20 bg-coral rounded-full flex items-center justify-center text-white text-2xl font-bold">
+          {profile.firstName[0]}{profile.lastName[0]}
+        </div>
+        <div>
+          <h3 className="text-lg font-medium text-navy">{profile.firstName} {profile.lastName}</h3>
+          <p className="text-muted-foreground">{profile.role}</p>
+          <Button variant="outline" size="sm" className="mt-2">
+            Change Avatar
+          </Button>
+        </div>
+      </div>
+
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div>
-          <label className="block text-sm font-medium text-navy mb-2">First Name</label>
+          <label className="block text-sm font-medium text-navy mb-2">First Name *</label>
           <input
             type="text"
             value={profile.firstName}
-            onChange={(e) => setProfile({...profile, firstName: e.target.value})}
+            onChange={(e) => handleProfileChange('firstName', e.target.value)}
             className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-coral focus:border-coral"
+            required
           />
         </div>
         
         <div>
-          <label className="block text-sm font-medium text-navy mb-2">Last Name</label>
+          <label className="block text-sm font-medium text-navy mb-2">Last Name *</label>
           <input
             type="text"
             value={profile.lastName}
-            onChange={(e) => setProfile({...profile, lastName: e.target.value})}
+            onChange={(e) => handleProfileChange('lastName', e.target.value)}
             className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-coral focus:border-coral"
+            required
           />
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-navy mb-2">Email</label>
+          <label className="block text-sm font-medium text-navy mb-2">Email *</label>
           <input
             type="email"
             value={profile.email}
-            onChange={(e) => setProfile({...profile, email: e.target.value})}
+            onChange={(e) => handleProfileChange('email', e.target.value)}
             className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-coral focus:border-coral"
+            required
           />
         </div>
 
@@ -132,7 +177,7 @@ function ProfileSettings({ loading, setLoading }: { loading: boolean, setLoading
           <input
             type="tel"
             value={profile.phone}
-            onChange={(e) => setProfile({...profile, phone: e.target.value})}
+            onChange={(e) => handleProfileChange('phone', e.target.value)}
             className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-coral focus:border-coral"
           />
         </div>
@@ -141,13 +186,15 @@ function ProfileSettings({ loading, setLoading }: { loading: boolean, setLoading
           <label className="block text-sm font-medium text-navy mb-2">Role</label>
           <select
             value={profile.role}
-            onChange={(e) => setProfile({...profile, role: e.target.value})}
+            onChange={(e) => handleProfileChange('role', e.target.value)}
             className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-coral focus:border-coral"
           >
-            <option>Project Manager</option>
-            <option>Sales Manager</option>
-            <option>Administrator</option>
-            <option>Contractor</option>
+            <option value="Project Manager">Project Manager</option>
+            <option value="Sales Manager">Sales Manager</option>
+            <option value="Administrator">Administrator</option>
+            <option value="Contractor">Contractor</option>
+            <option value="Designer">Designer</option>
+            <option value="Estimator">Estimator</option>
           </select>
         </div>
 
@@ -155,21 +202,68 @@ function ProfileSettings({ loading, setLoading }: { loading: boolean, setLoading
           <label className="block text-sm font-medium text-navy mb-2">Primary Location</label>
           <select
             value={profile.location}
-            onChange={(e) => setProfile({...profile, location: e.target.value})}
+            onChange={(e) => handleProfileChange('location', e.target.value)}
             className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-coral focus:border-coral"
           >
-            <option>North Vancouver</option>
-            <option>Vancouver</option>
-            <option>Richmond</option>
+            <option value="North Vancouver">North Vancouver</option>
+            <option value="Vancouver">Vancouver</option>
+            <option value="Richmond">Richmond</option>
+            <option value="Burnaby">Burnaby</option>
+            <option value="Surrey">Surrey</option>
+            <option value="New Westminster">New Westminster</option>
+          </select>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-navy mb-2">Timezone</label>
+          <select
+            value={profile.timezone}
+            onChange={(e) => handleProfileChange('timezone', e.target.value)}
+            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-coral focus:border-coral"
+          >
+            <option value="America/Vancouver">Pacific Time (Vancouver)</option>
+            <option value="America/Edmonton">Mountain Time (Edmonton)</option>
+            <option value="America/Toronto">Eastern Time (Toronto)</option>
+            <option value="America/Halifax">Atlantic Time (Halifax)</option>
+          </select>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-navy mb-2">Language</label>
+          <select
+            value={profile.language}
+            onChange={(e) => handleProfileChange('language', e.target.value)}
+            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-coral focus:border-coral"
+          >
+            <option value="en">English</option>
+            <option value="fr">Français</option>
+            <option value="es">Español</option>
           </select>
         </div>
       </div>
 
+      {/* Change indicator */}
+      {hasChanges && (
+        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
+          <div className="flex items-center">
+            <span className="text-yellow-800 text-sm">⚠️ You have unsaved changes</span>
+          </div>
+        </div>
+      )}
+
       <div className="flex gap-4 pt-6">
-        <Button onClick={handleSave} disabled={loading}>
-          {loading ? 'Saving...' : 'Save Changes'}
+        <Button 
+          onClick={handleSave} 
+          disabled={loading || !hasChanges}
+          variant={hasChanges ? "coral" : "default"}
+        >
+          {loading ? 'Saving...' : hasChanges ? 'Save Changes' : 'No Changes'}
         </Button>
-        <Button variant="outline">
+        <Button 
+          variant="outline" 
+          onClick={handleCancel}
+          disabled={loading || !hasChanges}
+        >
           Cancel
         </Button>
       </div>
@@ -197,6 +291,40 @@ function OrganizationSettings() {
 }
 
 function NotificationSettings() {
+  const { notifySuccess } = useNotificationHelpers();
+  const [settings, setSettings] = useState({
+    email: {
+      projectUpdates: true,
+      dealChanges: true,
+      changeOrders: true,
+      invoiceReminders: true,
+      systemAlerts: false
+    },
+    push: {
+      projectUpdates: true,
+      dealChanges: false,
+      changeOrders: true,
+      invoiceReminders: false,
+      systemAlerts: true
+    },
+    frequency: 'immediate' // immediate, daily, weekly
+  });
+
+  const handleToggle = (category: 'email' | 'push', setting: string) => {
+    setSettings(prev => ({
+      ...prev,
+      [category]: {
+        ...prev[category],
+        [setting]: !prev[category][setting as keyof typeof prev[typeof category]]
+      }
+    }));
+  };
+
+  const handleSave = () => {
+    // Simulate save
+    notifySuccess('Notifications Updated', 'Your notification preferences have been saved');
+  };
+
   return (
     <div className="space-y-6">
       <div>
@@ -205,11 +333,77 @@ function NotificationSettings() {
           Choose how you want to be notified about important updates.
         </p>
       </div>
-      
-      <div className="text-center py-12">
-        <div className="text-6xl mb-4">🔔</div>
-        <h3 className="font-space text-lg font-medium text-navy mb-2">Notifications</h3>
-        <p className="text-muted-foreground">Notification settings coming soon</p>
+
+      {/* Email Notifications */}
+      <div className="bg-gray-50 rounded-lg p-6">
+        <h3 className="font-medium text-navy mb-4 flex items-center">
+          📧 Email Notifications
+        </h3>
+        <div className="space-y-3">
+          {Object.entries(settings.email).map(([key, value]) => (
+            <div key={key} className="flex items-center justify-between">
+              <span className="text-sm capitalize">{key.replace(/([A-Z])/g, ' $1')}</span>
+              <label className="relative inline-flex items-center cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={value}
+                  onChange={() => handleToggle('email', key)}
+                  className="sr-only peer"
+                />
+                <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-coral/20 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-coral"></div>
+              </label>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Push Notifications */}
+      <div className="bg-gray-50 rounded-lg p-6">
+        <h3 className="font-medium text-navy mb-4 flex items-center">
+          📱 Push Notifications
+        </h3>
+        <div className="space-y-3">
+          {Object.entries(settings.push).map(([key, value]) => (
+            <div key={key} className="flex items-center justify-between">
+              <span className="text-sm capitalize">{key.replace(/([A-Z])/g, ' $1')}</span>
+              <label className="relative inline-flex items-center cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={value}
+                  onChange={() => handleToggle('push', key)}
+                  className="sr-only peer"
+                />
+                <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-coral/20 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-coral"></div>
+              </label>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Notification Frequency */}
+      <div className="bg-gray-50 rounded-lg p-6">
+        <h3 className="font-medium text-navy mb-4">📅 Notification Frequency</h3>
+        <div className="space-y-2">
+          {['immediate', 'daily', 'weekly'].map((freq) => (
+            <label key={freq} className="flex items-center">
+              <input
+                type="radio"
+                name="frequency"
+                value={freq}
+                checked={settings.frequency === freq}
+                onChange={(e) => setSettings(prev => ({ ...prev, frequency: e.target.value }))}
+                className="mr-3 text-coral focus:ring-coral"
+              />
+              <span className="text-sm capitalize">{freq}</span>
+            </label>
+          ))}
+        </div>
+      </div>
+
+      <div className="flex gap-4 pt-6">
+        <Button onClick={handleSave}>
+          Save Preferences
+        </Button>
       </div>
     </div>
   )

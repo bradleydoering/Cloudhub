@@ -1,7 +1,15 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Button } from '@cloudreno/ui';
+import { useNotificationHelpers } from '../../src/components/NotificationSystem';
+import { useProjectUpdates, useRealTimeUpdates } from '../../src/hooks/useRealTimeUpdates';
+import { useErrorHandling } from '../../src/hooks/useErrorHandling';
+import { ApiErrorHandler } from '../../src/utils/apiErrorHandler';
+import { LoadingSpinner, LoadingCard, LoadingOverlay, SkeletonCard, useLoadingState } from '../../src/components/LoadingStates';
+import ErrorBoundary from '../../src/components/ErrorBoundary';
+import SearchFilters, { useSearchFilters, filterData, FilterOption } from '../../src/components/SearchFilters';
+import BulkActions, { useBulkSelection, BulkSelectCheckbox, BulkAction } from '../../src/components/BulkActions';
 import ProjectDetailView from '../../src/components/ProjectDetailView';
 import DocumentManager from '../../src/components/DocumentManager';
 import ChangeOrderManager from '../../src/components/ChangeOrderManager';
@@ -19,7 +27,17 @@ const tabs = [
   { id: 'invoices', name: 'Invoices & Payments' },
 ];
 
-function ProjectCard({ project, onSelect }: { project: ProjectWithCustomer, onSelect: () => void }) {
+function ProjectCard({ 
+  project, 
+  onSelect, 
+  isSelected,
+  onToggleSelect 
+}: { 
+  project: ProjectWithCustomer;
+  onSelect: () => void;
+  isSelected?: boolean;
+  onToggleSelect?: (id: string) => void;
+}) {
   const statusColors = {
     'not-started': 'bg-navy/10 text-navy',
     'in-progress': 'bg-coral/10 text-coral',
@@ -34,12 +52,21 @@ function ProjectCard({ project, onSelect }: { project: ProjectWithCustomer, onSe
 
   return (
     <div 
-      className="bg-card border border-border p-6 [clip-path:polygon(0.5rem_0%,100%_0%,100%_calc(100%-0.5rem),calc(100%-0.5rem)_100%,0%_100%,0%_0.5rem)] hover:shadow-md transition-shadow cursor-pointer"
+      className={`bg-card border border-border p-6 [clip-path:polygon(0.5rem_0%,100%_0%,100%_calc(100%-0.5rem),calc(100%-0.5rem)_100%,0%_100%,0%_0.5rem)] hover:shadow-md transition-shadow cursor-pointer ${
+        isSelected ? 'ring-2 ring-coral bg-coral/5' : ''
+      }`}
       onClick={onSelect}
     >
       <div className="flex items-start justify-between mb-4">
-        <div>
+        <div className="flex-1">
           <div className="flex items-center gap-3 mb-2">
+            {onToggleSelect && (
+              <BulkSelectCheckbox
+                checked={isSelected || false}
+                onChange={() => onToggleSelect(project.id)}
+                className="mr-2"
+              />
+            )}
             <h3 className="font-space font-semibold text-lg text-navy">{project.title}</h3>
             <span className={`text-xs px-2 py-1 rounded-full font-medium ${statusColors[project.status]}`}>
               {project.status.replace('-', ' ').toUpperCase()}
@@ -89,8 +116,10 @@ function ProjectDetail({
   handleDocumentUpload, 
   handleDocumentDownload, 
   handleDocumentShare, 
+  handleDocumentDelete,
   handleChangeOrderCreate, 
-  handleChangeOrderStatusUpdate, 
+  handleChangeOrderStatusUpdate,
+  handleChangeOrderDelete,
   handlePhotoUpload, 
   handleInvoiceCreate, 
   handleInvoiceUpdate, 
@@ -100,11 +129,13 @@ function ProjectDetail({
   projectDetails: ProjectDetails | null;
   activeTab: string;
   setActiveTab: (tab: string) => void;
-  handleDocumentUpload: (file: File) => void;
+  handleDocumentUpload: (file: File, category: string, description?: string) => void;
   handleDocumentDownload: (document: any) => void;
   handleDocumentShare: (document: any) => void;
+  handleDocumentDelete: (documentId: string) => void;
   handleChangeOrderCreate: (changeOrder: any) => void;
   handleChangeOrderStatusUpdate: (id: string, status: string, reason?: string) => void;
+  handleChangeOrderDelete: (id: string) => void;
   handlePhotoUpload: (files: FileList, category: any) => void;
   handleInvoiceCreate: (invoice: any) => void;
   handleInvoiceUpdate: (invoice: any) => void;
@@ -227,6 +258,7 @@ function ProjectDetail({
             onUpload={handleDocumentUpload}
             onDownload={handleDocumentDownload}
             onShare={handleDocumentShare}
+            onDelete={handleDocumentDelete}
           />
         );
         
@@ -236,6 +268,7 @@ function ProjectDetail({
             changeOrders={projectDetails.changeOrders}
             onCreate={handleChangeOrderCreate}
             onStatusUpdate={handleChangeOrderStatusUpdate}
+            onDelete={handleChangeOrderDelete}
           />
         );
         
@@ -330,8 +363,184 @@ export default function ProjectsPage() {
   const [activeTab, setActiveTab] = useState('overview');
   const [showNewProjectForm, setShowNewProjectForm] = useState(false);
   const [showProjectDetail, setShowProjectDetail] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  
+  // Enhanced loading and error states
+  const { 
+    isLoading: initialLoading, 
+    error: loadingError, 
+    startLoading, 
+    stopLoading, 
+    setLoadingError 
+  } = useLoadingState(true);
+  
+  const { 
+    isLoading: projectDetailsLoading, 
+    startLoading: startDetailsLoading, 
+    stopLoading: stopDetailsLoading 
+  } = useLoadingState(false);
+  
+  const { 
+    isLoading: operationLoading, 
+    startLoading: startOperationLoading, 
+    stopLoading: stopOperationLoading 
+  } = useLoadingState(false);
+  
+  const { handleError, clearError, retryOperation } = useErrorHandling({
+    enableNotifications: true,
+    logErrors: true
+  });
+  
+  // Real-time updates and notifications
+  const { notifySuccess, notifyInfo, notifyError } = useNotificationHelpers();
+  const { isConnected } = useRealTimeUpdates({ enabled: true });
+  
+  // Project-specific updates for selected project
+  const { projectStatus, progress, updateProjectStatus } = useProjectUpdates(
+    selectedProject?.id || ''
+  );
+
+  // Search and filter state
+  const {
+    searchTerm,
+    setSearchTerm,
+    activeFilters,
+    showAdvanced,
+    handleFilterChange,
+    clearFilters,
+    toggleAdvanced
+  } = useSearchFilters();
+
+  // Define filter options for projects
+  const filterOptions: FilterOption[] = [
+    {
+      id: 'status',
+      label: 'Status',
+      type: 'select',
+      options: [
+        { value: 'not-started', label: 'Not Started' },
+        { value: 'in-progress', label: 'In Progress' },
+        { value: 'on-hold', label: 'On Hold' },
+        { value: 'completed', label: 'Completed' },
+        { value: 'cancelled', label: 'Cancelled' }
+      ]
+    },
+    {
+      id: 'priority',
+      label: 'Priority',
+      type: 'select',
+      options: [
+        { value: 'low', label: 'Low' },
+        { value: 'medium', label: 'Medium' },
+        { value: 'high', label: 'High' },
+        { value: 'urgent', label: 'Urgent' }
+      ]
+    },
+    {
+      id: 'manager',
+      label: 'Project Manager',
+      type: 'select',
+      options: [
+        { value: 'Sarah Chen', label: 'Sarah Chen' },
+        { value: 'Mike Johnson', label: 'Mike Johnson' },
+        { value: 'Emily Rodriguez', label: 'Emily Rodriguez' },
+        { value: 'David Kim', label: 'David Kim' }
+      ]
+    },
+    {
+      id: 'contract_amount',
+      label: 'Contract Amount ($)',
+      type: 'number',
+      min: 0,
+      max: 1000000
+    },
+    {
+      id: 'percent_complete',
+      label: 'Progress (%)',
+      type: 'number',
+      min: 0,
+      max: 100
+    },
+    {
+      id: 'start_date',
+      label: 'Start Date',
+      type: 'daterange'
+    },
+    {
+      id: 'expected_completion',
+      label: 'Expected Completion',
+      type: 'daterange'
+    },
+    {
+      id: 'city',
+      label: 'City',
+      type: 'select',
+      options: [
+        { value: 'Vancouver', label: 'Vancouver' },
+        { value: 'North Vancouver', label: 'North Vancouver' },
+        { value: 'Richmond', label: 'Richmond' },
+        { value: 'Burnaby', label: 'Burnaby' },
+        { value: 'Surrey', label: 'Surrey' }
+      ]
+    }
+  ];
+
+  // Filter and search projects
+  const filteredProjects = useMemo(() => {
+    return filterData(
+      projects,
+      searchTerm,
+      activeFilters,
+      ['title', 'project_number', 'manager', 'city', 'address_line1']
+    );
+  }, [projects, searchTerm, activeFilters]);
+
+  // Bulk selection state
+  const {
+    selectedIds,
+    selectedItems,
+    isAllSelected,
+    isIndeterminate,
+    toggleItem,
+    toggleAll,
+    clearSelection
+  } = useBulkSelection(filteredProjects);
+
+  // Define bulk actions for projects
+  const bulkActions: BulkAction[] = [
+    {
+      id: 'status-in-progress',
+      label: 'Start Projects',
+      icon: '▶️',
+      variant: 'default'
+    },
+    {
+      id: 'status-on-hold',
+      label: 'Put On Hold',
+      icon: '⏸️',
+      variant: 'secondary'
+    },
+    {
+      id: 'status-completed',
+      label: 'Mark Complete',
+      icon: '✅',
+      variant: 'default'
+    },
+    {
+      id: 'export',
+      label: 'Export',
+      icon: '📄',
+      variant: 'secondary'
+    },
+    {
+      id: 'delete',
+      label: 'Delete',
+      icon: '🗑️',
+      variant: 'destructive',
+      requiresConfirmation: true,
+      confirmationTitle: 'Delete Projects',
+      confirmationMessage: 'Are you sure you want to delete the selected projects? This action cannot be undone.'
+    }
+  ];
   
   // Load projects from Supabase
   useEffect(() => {
@@ -347,21 +556,33 @@ export default function ProjectsPage() {
 
   const loadProjects = async () => {
     try {
-      setLoading(true);
-      // Mock implementation using MCP Supabase queries
-      const projectsData = await executeSupabaseQuery(`
-        SELECT 
-          p.*,
-          c.name as customer_name,
-          c.email as customer_email,
-          c.phone as customer_phone,
-          c.address_line1 as customer_address_line1,
-          c.city as customer_city,
-          c.province as customer_province
-        FROM projects p
-        JOIN customers c ON p.customer_id = c.id
-        ORDER BY p.created_at DESC
-      `);
+      startLoading();
+      clearError();
+      
+      const projectsData = await ApiErrorHandler.handleAsyncOperation(
+        () => executeSupabaseQuery(`
+          SELECT 
+            p.*,
+            c.name as customer_name,
+            c.email as customer_email,
+            c.phone as customer_phone,
+            c.address_line1 as customer_address_line1,
+            c.city as customer_city,
+            c.province as customer_province
+          FROM projects p
+          JOIN customers c ON p.customer_id = c.id
+          ORDER BY p.created_at DESC
+        `),
+        'loading projects',
+        {
+          retries: 2,
+          retryDelay: 1000,
+          timeout: 15000,
+          onRetry: (attempt) => {
+            notifyInfo('Retrying...', `Attempt ${attempt} to load projects`);
+          }
+        }
+      );
 
       const mappedProjects: ProjectWithCustomer[] = projectsData.map((row: any) => ({
         ...row,
@@ -377,11 +598,11 @@ export default function ProjectsPage() {
       }));
 
       setProjects(mappedProjects);
+      stopLoading();
     } catch (err) {
-      setError('Failed to load projects');
-      console.error('Error loading projects:', err);
-    } finally {
-      setLoading(false);
+      const error = err instanceof Error ? err : new Error('Failed to load projects');
+      handleError(error, 'loading projects');
+      setLoadingError(error.message);
     }
   };
 
@@ -437,6 +658,63 @@ export default function ProjectsPage() {
       // This would use the MCP Supabase client
       // For now, return empty data to prevent runtime errors
       console.log('Would execute Supabase query:', sql, params);
+      
+      // Mock some sample data for demonstration
+      if (sql.includes('SELECT') && sql.includes('documents')) {
+        return [
+          {
+            id: '1',
+            name: 'Building Plans.pdf',
+            type: 'application/pdf',
+            size: 2048576,
+            category: 'plan',
+            upload_date: '2024-01-15T10:00:00Z',
+            uploaded_by: 'John Doe',
+            file_url: '/storage/documents/building-plans.pdf',
+            description: 'Main building plans and elevations'
+          },
+          {
+            id: '2', 
+            name: 'Contract Agreement.pdf',
+            type: 'application/pdf',
+            size: 512000,
+            category: 'contract',
+            upload_date: '2024-01-10T14:30:00Z',
+            uploaded_by: 'Jane Smith',
+            file_url: '/storage/documents/contract.pdf',
+            description: 'Signed construction contract'
+          }
+        ];
+      }
+      
+      if (sql.includes('SELECT') && sql.includes('change_orders')) {
+        return [
+          {
+            id: '1',
+            title: 'Upgrade Kitchen Countertops',
+            description: 'Client requested upgrade from laminate to quartz countertops',
+            amount: 3500,
+            status: 'pending',
+            priority: 'medium',
+            submitted_by: 'Project Manager',
+            submitted_date: '2024-01-20T09:00:00Z'
+          },
+          {
+            id: '2',
+            title: 'Add Extra Electrical Outlet',
+            description: 'Add GFCI outlet in bathroom per building code requirements',
+            amount: 150,
+            status: 'approved',
+            priority: 'high',
+            submitted_by: 'Electrician',
+            submitted_date: '2024-01-18T11:15:00Z',
+            approved_by: 'Site Supervisor',
+            approval_date: '2024-01-19T08:30:00Z',
+            reason: 'Safety compliance required'
+          }
+        ];
+      }
+      
       return [];
     } catch (error) {
       console.error('Error executing Supabase query:', error);
@@ -444,6 +722,100 @@ export default function ProjectsPage() {
     }
   };
   
+  // Bulk action handler
+  const handleBulkAction = async (actionId: string, selectedProjects: ProjectWithCustomer[]) => {
+    try {
+      startOperationLoading();
+      
+      switch (actionId) {
+        case 'status-in-progress':
+          await Promise.all(
+            selectedProjects.map(project =>
+              executeSupabaseQuery(
+                'UPDATE projects SET status = $2, updated_at = NOW() WHERE id = $1',
+                [project.id, 'in-progress']
+              )
+            )
+          );
+          setProjects(prev => prev.map(p => 
+            selectedProjects.some(sp => sp.id === p.id) 
+              ? { ...p, status: 'in-progress' as const }
+              : p
+          ));
+          notifySuccess('Projects Updated', `${selectedProjects.length} projects started`);
+          break;
+
+        case 'status-on-hold':
+          await Promise.all(
+            selectedProjects.map(project =>
+              executeSupabaseQuery(
+                'UPDATE projects SET status = $2, updated_at = NOW() WHERE id = $1',
+                [project.id, 'on-hold']
+              )
+            )
+          );
+          setProjects(prev => prev.map(p => 
+            selectedProjects.some(sp => sp.id === p.id) 
+              ? { ...p, status: 'on-hold' as const }
+              : p
+          ));
+          notifyInfo('Projects Updated', `${selectedProjects.length} projects put on hold`);
+          break;
+
+        case 'status-completed':
+          await Promise.all(
+            selectedProjects.map(project =>
+              executeSupabaseQuery(
+                'UPDATE projects SET status = $2, percent_complete = 100, updated_at = NOW() WHERE id = $1',
+                [project.id, 'completed']
+              )
+            )
+          );
+          setProjects(prev => prev.map(p => 
+            selectedProjects.some(sp => sp.id === p.id) 
+              ? { ...p, status: 'completed' as const, percent_complete: 100 }
+              : p
+          ));
+          notifySuccess('Projects Completed! 🎉', `${selectedProjects.length} projects marked as completed`);
+          break;
+
+        case 'export':
+          const csvContent = selectedProjects.map(p => 
+            `"${p.project_number}","${p.title}","${p.customer.name}","${p.status}","${p.contract_amount || 0}","${new Date(p.expected_completion).toLocaleDateString()}"`
+          ).join('\n');
+          const header = 'Project Number,Title,Customer,Status,Contract Amount,Expected Completion\n';
+          const blob = new Blob([header + csvContent], { type: 'text/csv' });
+          const url = window.URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = `projects-export-${new Date().toISOString().split('T')[0]}.csv`;
+          a.click();
+          window.URL.revokeObjectURL(url);
+          notifySuccess('Export Complete', `${selectedProjects.length} projects exported to CSV`);
+          break;
+
+        case 'delete':
+          await Promise.all(
+            selectedProjects.map(project =>
+              executeSupabaseQuery('DELETE FROM projects WHERE id = $1', [project.id])
+            )
+          );
+          setProjects(prev => prev.filter(p => !selectedProjects.some(sp => sp.id === p.id)));
+          notifyInfo('Projects Deleted', `${selectedProjects.length} projects removed`);
+          break;
+
+        default:
+          console.warn('Unknown bulk action:', actionId);
+      }
+      
+      stopOperationLoading();
+    } catch (error) {
+      stopOperationLoading();
+      const err = error instanceof Error ? error : new Error('Bulk action failed');
+      handleError(err, `bulk action: ${actionId}`);
+    }
+  };
+
   // Handler functions
   const handleNewProject = async (projectData: any) => {
     try {
@@ -490,6 +862,10 @@ export default function ProjectsPage() {
   
   const handleProjectUpdate = async (updatedProject: ProjectWithCustomer) => {
     try {
+      const previousProject = selectedProject;
+      const statusChanged = previousProject && previousProject.status !== updatedProject.status;
+      const progressChanged = previousProject && previousProject.percent_complete !== updatedProject.percent_complete;
+      
       await executeSupabaseQuery(`
         UPDATE projects 
         SET title = $2, description = $3, status = $4, priority = $5, 
@@ -509,35 +885,142 @@ export default function ProjectsPage() {
       // Update local state
       setProjects(prev => prev.map(p => p.id === updatedProject.id ? updatedProject : p));
       setSelectedProject(updatedProject);
+      
+      // Trigger real-time notifications for status changes
+      if (statusChanged || progressChanged) {
+        await updateProjectStatus(
+          updatedProject.status as any, 
+          updatedProject.percent_complete
+        );
+      }
+      
+      // Notify about successful update
+      notifySuccess('Project Updated', `${updatedProject.title} has been updated successfully`);
+      
     } catch (err) {
       console.error('Error updating project:', err);
-      alert('Failed to update project. Please try again.');
+      notifyError('Update Failed', 'Failed to update project. Please try again.');
     }
   };
   
-  const handleDocumentUpload = async (file: File) => {
-    console.log('Uploading document:', file.name);
-    // Implementation would handle actual file upload to Supabase Storage
+  const handleDocumentUpload = async (file: File, category: string, description?: string) => {
+    if (!selectedProject) return;
+    
+    try {
+      // Generate unique filename
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${selectedProject.id}/${Date.now()}-${file.name}`;
+      
+      // In a real implementation, this would upload to Supabase Storage
+      console.log('Uploading document:', { fileName, category, description, size: file.size });
+      
+      // Insert document record into database
+      await executeSupabaseQuery(`
+        INSERT INTO documents (
+          project_id, name, type, size, category, upload_date, uploaded_by, 
+          file_url, description
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+      `, [
+        selectedProject.id,
+        file.name,
+        file.type,
+        file.size,
+        category,
+        new Date().toISOString(),
+        'Current User',
+        `/storage/${fileName}`,
+        description
+      ]);
+
+      // Reload project details
+      await loadProjectDetails(selectedProject.id);
+      alert('Document uploaded successfully!');
+    } catch (err) {
+      console.error('Error uploading document:', err);
+      alert('Failed to upload document. Please try again.');
+    }
   };
   
   const handleDocumentDownload = (document: any) => {
-    console.log('Downloading document:', document.name);
-    // Implementation would handle file download
+    try {
+      // In a real implementation, this would download from Supabase Storage
+      console.log('Downloading document:', document.name);
+      
+      // Create a temporary download link
+      const link = document.createElement('a');
+      link.href = document.file_url || '#';
+      link.download = document.name;
+      link.click();
+      
+      // In real implementation:
+      // const { data, error } = await supabase.storage.from('documents').download(document.file_url);
+      // if (data) {
+      //   const url = URL.createObjectURL(data);
+      //   const a = document.createElement('a');
+      //   a.href = url;
+      //   a.download = document.name;
+      //   a.click();
+      //   URL.revokeObjectURL(url);
+      // }
+    } catch (err) {
+      console.error('Error downloading document:', err);
+      alert('Failed to download document. Please try again.');
+    }
   };
   
   const handleDocumentShare = (document: any) => {
-    console.log('Sharing document:', document.name);
-    // Implementation would handle sharing functionality
+    try {
+      // In a real implementation, this would generate a shareable link
+      const shareUrl = `${window.location.origin}/documents/shared/${document.id}`;
+      
+      // Copy to clipboard
+      navigator.clipboard.writeText(shareUrl);
+      alert(`Share link copied to clipboard: ${shareUrl}`);
+      
+      // In real implementation:
+      // const { data, error } = await supabase.storage.from('documents').createSignedUrl(document.file_url, 3600);
+      // if (data) {
+      //   navigator.clipboard.writeText(data.signedUrl);
+      //   alert('Shareable link copied to clipboard!');
+      // }
+    } catch (err) {
+      console.error('Error sharing document:', err);
+      alert('Failed to create share link. Please try again.');
+    }
   };
   
+  const handleDocumentDelete = async (documentId: string) => {
+    if (!selectedProject) return;
+    
+    try {
+      // Delete from database
+      await executeSupabaseQuery(`
+        DELETE FROM documents WHERE id = $1
+      `, [documentId]);
+
+      // In real implementation, also delete from storage:
+      // const document = projectDetails?.documents.find(d => d.id === documentId);
+      // if (document?.file_url) {
+      //   await supabase.storage.from('documents').remove([document.file_url]);
+      // }
+
+      // Reload project details
+      await loadProjectDetails(selectedProject.id);
+      alert('Document deleted successfully!');
+    } catch (err) {
+      console.error('Error deleting document:', err);
+      alert('Failed to delete document. Please try again.');
+    }
+  };
+
   const handleChangeOrderCreate = async (changeOrder: any) => {
     if (!selectedProject) return;
     
     try {
       await executeSupabaseQuery(`
         INSERT INTO change_orders (
-          project_id, title, description, amount, status, submitted_by, priority
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7)
+          project_id, title, description, amount, status, submitted_by, priority, submitted_date
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
       `, [
         selectedProject.id,
         changeOrder.title,
@@ -545,18 +1028,29 @@ export default function ProjectsPage() {
         changeOrder.amount,
         'pending',
         changeOrder.submitted_by,
-        changeOrder.priority || 'medium'
+        changeOrder.priority || 'medium',
+        changeOrder.submitted_date
       ]);
 
       // Reload project details
       await loadProjectDetails(selectedProject.id);
+      
+      // Notify about new change order
+      notifyInfo(
+        'Change Order Created', 
+        `New change order "${changeOrder.title}" submitted for $${changeOrder.amount.toLocaleString()}`
+      );
+      
     } catch (err) {
       console.error('Error creating change order:', err);
+      notifyError('Creation Failed', 'Failed to create change order. Please try again.');
     }
   };
   
   const handleChangeOrderStatusUpdate = async (id: string, status: string, reason?: string) => {
     try {
+      const changeOrder = projectDetails?.changeOrders.find(co => co.id === id);
+      
       await executeSupabaseQuery(`
         UPDATE change_orders 
         SET status = $2, approved_by = $3, approval_date = CURRENT_DATE, reason = $4, updated_at = NOW()
@@ -567,8 +1061,37 @@ export default function ProjectsPage() {
       if (selectedProject) {
         await loadProjectDetails(selectedProject.id);
       }
+      
+      // Notify about status change
+      if (changeOrder) {
+        const statusMessages = {
+          'approved': '✅ Change order approved',
+          'rejected': '❌ Change order rejected',
+          'implemented': '🔧 Change order implemented'
+        };
+        
+        const message = statusMessages[status as keyof typeof statusMessages] || `Status updated to ${status}`;
+        notifySuccess('Change Order Updated', `${changeOrder.title}: ${message}`);
+      }
+      
     } catch (err) {
       console.error('Error updating change order status:', err);
+      notifyError('Update Failed', 'Failed to update change order status. Please try again.');
+    }
+  };
+
+  const handleChangeOrderDelete = async (id: string) => {
+    try {
+      await executeSupabaseQuery(`
+        DELETE FROM change_orders WHERE id = $1
+      `, [id]);
+
+      // Reload project details
+      if (selectedProject) {
+        await loadProjectDetails(selectedProject.id);
+      }
+    } catch (err) {
+      console.error('Error deleting change order:', err);
     }
   };
   
@@ -654,24 +1177,80 @@ export default function ProjectsPage() {
     window.URL.revokeObjectURL(url);
   };
 
-  if (loading) {
+  // Loading state
+  if (initialLoading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-center">
-          <div className="text-4xl mb-4">⏳</div>
-          <p className="text-muted-foreground">Loading projects...</p>
+      <div className="space-y-6">
+        {/* Header */}
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h1 className="font-space text-3xl font-semibold text-navy">Projects</h1>
+            <p className="text-muted-foreground mt-1">Manage active renovation projects</p>
+          </div>
+          <div className="flex gap-3 mt-4 sm:mt-0">
+            <Button variant="outline" disabled>
+              <LoadingSpinner size="sm" className="mr-2" />
+              Export Projects
+            </Button>
+            <Button variant="coral" disabled>
+              + New Project
+            </Button>
+          </div>
+        </div>
+
+        {/* Loading skeleton */}
+        <div className="space-y-6">
+          <LoadingCard 
+            title="Loading Projects..." 
+            message="Please wait while we fetch your project data"
+            icon="📋"
+          />
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <SkeletonCard key={i} />
+            ))}
+          </div>
         </div>
       </div>
     );
   }
 
-  if (error) {
+  // Error state
+  if (loadingError) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-center">
-          <div className="text-4xl mb-4">❌</div>
-          <p className="text-red-600">{error}</p>
-          <Button onClick={loadProjects} className="mt-4">Retry</Button>
+      <div className="space-y-6">
+        {/* Header */}
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h1 className="font-space text-3xl font-semibold text-navy">Projects</h1>
+            <p className="text-muted-foreground mt-1">Manage active renovation projects</p>
+          </div>
+        </div>
+
+        {/* Error state */}
+        <div className="bg-card border border-border p-12 text-center [clip-path:polygon(0.5rem_0%,100%_0%,100%_calc(100%-0.5rem),calc(100%-0.5rem)_100%,0%_100%,0%_0.5rem)]">
+          <div className="text-4xl mb-4">⚠️</div>
+          <h3 className="text-lg font-medium text-navy mb-2">Failed to Load Projects</h3>
+          <p className="text-muted-foreground mb-6">{loadingError}</p>
+          <div className="flex gap-3 justify-center">
+            <Button 
+              variant="outline" 
+              onClick={() => retryOperation(loadProjects)}
+              disabled={initialLoading}
+            >
+              {initialLoading ? (
+                <>
+                  <LoadingSpinner size="sm" className="mr-2" />
+                  Retrying...
+                </>
+              ) : (
+                'Try Again'
+              )}
+            </Button>
+            <Button variant="coral" onClick={() => setShowNewProjectForm(true)}>
+              Create New Project
+            </Button>
+          </div>
         </div>
       </div>
     );
@@ -679,77 +1258,132 @@ export default function ProjectsPage() {
 
   if (selectedProject) {
     return (
-      <div className="space-y-6">
-        <div className="flex items-center gap-4">
-          <Button 
-            variant="outline" 
-            onClick={() => {
-              setSelectedProject(null);
-              setProjectDetails(null);
-            }}
-            size="sm"
-          >
-            ← Back to Projects
-          </Button>
-        </div>
-        <ProjectDetail 
-          project={selectedProject} 
+      <ErrorBoundary>
+        <LoadingOverlay isVisible={projectDetailsLoading} message="Loading project details...">
+          <div className="space-y-6">
+            <div className="flex items-center gap-4">
+              <Button 
+                variant="outline" 
+                onClick={() => {
+                  setSelectedProject(null);
+                  setProjectDetails(null);
+                }}
+                size="sm"
+                disabled={projectDetailsLoading}
+              >
+                ← Back to Projects
+              </Button>
+              {projectDetailsLoading && (
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <LoadingSpinner size="sm" />
+                  Loading project details...
+                </div>
+              )}
+            </div>
+            <ProjectDetail 
+              project={selectedProject} 
           projectDetails={projectDetails}
           activeTab={activeTab} 
           setActiveTab={setActiveTab}
           handleDocumentUpload={handleDocumentUpload}
           handleDocumentDownload={handleDocumentDownload}
           handleDocumentShare={handleDocumentShare}
+          handleDocumentDelete={handleDocumentDelete}
           handleChangeOrderCreate={handleChangeOrderCreate}
           handleChangeOrderStatusUpdate={handleChangeOrderStatusUpdate}
+          handleChangeOrderDelete={handleChangeOrderDelete}
           handlePhotoUpload={handlePhotoUpload}
           handleInvoiceCreate={handleInvoiceCreate}
           handleInvoiceUpdate={handleInvoiceUpdate}
           setShowProjectDetail={setShowProjectDetail}
-        />
-      </div>
+            />
+          </div>
+        </LoadingOverlay>
+      </ErrorBoundary>
     );
   }
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="font-space text-3xl font-semibold text-navy">Projects</h1>
-          <p className="text-muted-foreground mt-1">Manage active renovation projects</p>
-        </div>
-        <div className="flex gap-3 mt-4 sm:mt-0">
-          <Button variant="outline" onClick={handleExportProjects}>
-            Export Projects
-          </Button>
-          <Button variant="coral" onClick={() => setShowNewProjectForm(true)}>
-            + New Project
-          </Button>
-        </div>
-      </div>
+    <ErrorBoundary>
+      <LoadingOverlay isVisible={operationLoading} message="Processing...">
+        <div className="space-y-6">
+          {/* Header */}
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h1 className="font-space text-3xl font-semibold text-navy">Projects</h1>
+              <p className="text-muted-foreground mt-1">Manage active renovation projects</p>
+            </div>
+            <div className="flex gap-3 mt-4 sm:mt-0">
+              <Button 
+                variant="outline" 
+                onClick={handleExportProjects}
+                disabled={operationLoading}
+              >
+                {operationLoading ? (
+                  <>
+                    <LoadingSpinner size="sm" className="mr-2" />
+                    Exporting...
+                  </>
+                ) : (
+                  'Export Projects'
+                )}
+              </Button>
+              <Button 
+                variant="coral" 
+                onClick={() => setShowNewProjectForm(true)}
+                disabled={operationLoading}
+              >
+                + New Project
+              </Button>
+            </div>
+          </div>
+
+          {/* Search and Filters */}
+          <SearchFilters
+            searchTerm={searchTerm}
+            onSearchChange={setSearchTerm}
+            filters={filterOptions}
+            activeFilters={activeFilters}
+            onFilterChange={handleFilterChange}
+            onClearFilters={clearFilters}
+            showAdvanced={showAdvanced}
+            onToggleAdvanced={toggleAdvanced}
+          />
+
+          {/* Bulk Actions */}
+          <BulkActions
+            selectedItems={selectedItems}
+            onClearSelection={clearSelection}
+            actions={bulkActions}
+            onAction={handleBulkAction}
+            itemName="projects"
+          />
 
       {/* Stats */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <div className="bg-card border border-border p-4 [clip-path:polygon(0.5rem_0%,100%_0%,100%_calc(100%-0.5rem),calc(100%-0.5rem)_100%,0%_100%,0%_0.5rem)]">
-          <div className="text-2xl font-space font-semibold text-navy">{projects.length}</div>
-          <div className="text-sm text-muted-foreground">Active Projects</div>
+          <div className="text-2xl font-space font-semibold text-navy">{filteredProjects.length}</div>
+          <div className="text-sm text-muted-foreground">
+            {searchTerm || Object.keys(activeFilters).length > 0 ? 'Filtered Projects' : 'Active Projects'}
+          </div>
         </div>
         <div className="bg-card border border-border p-4 [clip-path:polygon(0.5rem_0%,100%_0%,100%_calc(100%-0.5rem),calc(100%-0.5rem)_100%,0%_100%,0%_0.5rem)]">
           <div className="text-2xl font-space font-semibold text-coral">
-            ${projects.reduce((sum, p) => sum + p.contract_amount, 0).toLocaleString()}
+            ${filteredProjects.reduce((sum, p) => sum + p.contract_amount, 0).toLocaleString()}
           </div>
           <div className="text-sm text-muted-foreground">Total Contract Value</div>
         </div>
         <div className="bg-card border border-border p-4 [clip-path:polygon(0.5rem_0%,100%_0%,100%_calc(100%-0.5rem),calc(100%-0.5rem)_100%,0%_100%,0%_0.5rem)]">
           <div className="text-2xl font-space font-semibold text-navy">
-            {projects.length > 0 ? Math.round(projects.reduce((sum, p) => sum + p.percent_complete, 0) / projects.length) : 0}%
+            {filteredProjects.length > 0 ? Math.round(filteredProjects.reduce((sum, p) => sum + p.percent_complete, 0) / filteredProjects.length) : 0}%
           </div>
           <div className="text-sm text-muted-foreground">Average Progress</div>
         </div>
         <div className="bg-card border border-border p-4 [clip-path:polygon(0.5rem_0%,100%_0%,100%_calc(100%-0.5rem),calc(100%-0.5rem)_100%,0%_100%,0%_0.5rem)]">
-          <div className="text-2xl font-space font-semibold text-navy">100%</div>
-          <div className="text-sm text-muted-foreground">On Time Delivery</div>
+          <div className="text-2xl font-space font-semibold text-navy">
+            {filteredProjects.filter(p => p.status === 'completed').length}
+          </div>
+          <div className="text-sm text-muted-foreground">Completed Projects</div>
         </div>
       </div>
 
@@ -763,15 +1397,60 @@ export default function ProjectsPage() {
             Create First Project
           </Button>
         </div>
+      ) : filteredProjects.length === 0 ? (
+        <div className="text-center py-12">
+          <div className="text-4xl mb-4">🔍</div>
+          <h3 className="text-lg font-medium text-navy mb-2">No Projects Found</h3>
+          <p className="text-muted-foreground mb-6">
+            No projects match your current search criteria. Try adjusting your filters or search term.
+          </p>
+          <Button variant="outline" onClick={clearFilters}>
+            Clear Filters
+          </Button>
+        </div>
       ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {projects.map(project => (
-            <ProjectCard
-              key={project.id}
-              project={project}
-              onSelect={() => setSelectedProject(project)}
-            />
-          ))}
+        <div className="space-y-4">
+          {/* Results summary */}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <BulkSelectCheckbox
+                checked={isAllSelected}
+                indeterminate={isIndeterminate}
+                onChange={toggleAll}
+                className="flex items-center gap-2"
+              />
+              <p className="text-sm text-muted-foreground">
+                Showing {filteredProjects.length} of {projects.length} projects
+                {searchTerm && ` for "${searchTerm}"`}
+                {selectedItems.length > 0 && ` (${selectedItems.length} selected)`}
+              </p>
+            </div>
+            <select 
+              className="text-sm border border-input rounded px-3 py-1"
+              onChange={(e) => {
+                // TODO: Implement sorting
+                console.log('Sort by:', e.target.value);
+              }}
+            >
+              <option value="created_at">Sort by: Recently Created</option>
+              <option value="title">Sort by: Title</option>
+              <option value="contract_amount">Sort by: Contract Amount</option>
+              <option value="progress">Sort by: Progress</option>
+              <option value="due_date">Sort by: Due Date</option>
+            </select>
+          </div>
+          
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {filteredProjects.map(project => (
+              <ProjectCard
+                key={project.id}
+                project={project}
+                onSelect={() => setSelectedProject(project)}
+                isSelected={selectedIds.has(project.id)}
+                onToggleSelect={toggleItem}
+              />
+            ))}
+          </div>
         </div>
       )}
       
@@ -799,6 +1478,8 @@ export default function ProjectsPage() {
           </div>
         </div>
       )}
-    </div>
+        </div>
+      </LoadingOverlay>
+    </ErrorBoundary>
   );
 }

@@ -72,16 +72,21 @@ export interface Document {
   created_at: string;
   updated_at: string;
   name: string;
-  original_name: string;
-  file_path: string;
-  file_size: number;
-  mime_type: string;
+  original_name?: string;
+  file_path?: string;
+  file_url?: string;
+  file_size?: number;
+  size: number;
+  mime_type?: string;
+  type: string;
   project_id?: string;
   customer_id?: string;
   document_type?: string;
+  category: 'contract' | 'permit' | 'plan' | 'specification' | 'correspondence' | 'other';
   description?: string;
   uploaded_by: string;
-  is_public: boolean;
+  upload_date: string;
+  is_public?: boolean;
   shared_with?: string[];
 }
 
@@ -92,12 +97,16 @@ export interface Invoice {
   project_id?: string;
   customer_id: string;
   invoice_number: string;
+  number: string;
   description?: string;
   total_amount: number;
+  amount: number;
   tax_amount?: number;
   status: 'draft' | 'sent' | 'paid' | 'overdue' | 'cancelled';
   issue_date: string;
+  issueDate: string;
   due_date: string;
+  dueDate: string;
   paid_date?: string;
   payment_terms?: string;
   notes?: string;
@@ -119,20 +128,21 @@ export interface ChangeOrder {
   created_at: string;
   updated_at: string;
   title: string;
-  description?: string;
+  description: string;
   project_id: string;
   amount: number;
   status: 'pending' | 'approved' | 'rejected' | 'implemented';
   submit_date?: string;
+  submitted_date: string;
   review_date?: string;
   approval_date?: string;
   implementation_date?: string;
-  submitted_by?: string;
+  submitted_by: string;
   reviewed_by?: string;
   approved_by?: string;
   reason?: string;
   impact_on_schedule?: number;
-  priority?: 'low' | 'medium' | 'high' | 'urgent';
+  priority: 'low' | 'medium' | 'high' | 'urgent';
 }
 
 export interface Photo {
@@ -140,16 +150,19 @@ export interface Photo {
   created_at: string;
   updated_at: string;
   name: string;
-  original_name: string;
-  file_path: string;
-  file_size: number;
+  original_name?: string;
+  file_path?: string;
+  url: string;
+  file_size?: number;
   project_id: string;
   category: 'before' | 'progress' | 'after' | 'other';
   description?: string;
   width?: number;
   height?: number;
   uploaded_by: string;
+  uploadedBy: string;
   taken_date?: string;
+  uploadDate: string;
   display_order?: number;
   is_featured?: boolean;
 }

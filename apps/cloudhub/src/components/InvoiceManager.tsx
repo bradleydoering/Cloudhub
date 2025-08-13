@@ -3,29 +3,27 @@
 import React, { useState } from 'react';
 import { Button } from '@cloudreno/ui';
 
-interface Invoice {
-  id: string;
-  number: string;
-  description: string;
-  amount: number;
-  status: 'draft' | 'sent' | 'paid' | 'overdue' | 'cancelled';
-  issueDate: string;
-  dueDate: string;
-  paidDate?: string;
+import { Invoice as DatabaseInvoice, InvoiceItem as DatabaseInvoiceItem } from '../types/database';
+
+interface Invoice extends Omit<DatabaseInvoice, 'items'> {
   items: InvoiceItem[];
 }
 
-interface InvoiceItem {
-  id: string;
-  description: string;
-  quantity: number;
-  rate: number;
-  amount: number;
+interface InvoiceItem extends DatabaseInvoiceItem {
+  rate?: number; // For backwards compatibility
+  amount?: number; // For backwards compatibility
 }
 
 interface InvoiceManagerProps {
   invoices: Invoice[];
-  onCreate: (invoice: Omit<Invoice, 'id' | 'number'>) => void;
+  onCreate: (invoice: {
+    description?: string;
+    amount: number;
+    status: 'draft' | 'sent' | 'paid' | 'overdue' | 'cancelled';
+    issueDate: string;
+    dueDate: string;
+    items: InvoiceItem[];
+  }) => void;
   onUpdate: (invoice: Invoice) => void;
   onDelete?: (invoiceId: string) => void;
   onSend?: (invoiceId: string) => void;
@@ -57,16 +55,21 @@ export default function InvoiceManager({
     dueDate: new Date().toISOString().split('T')[0]!,
     items: [{
       id: '1',
+      created_at: new Date().toISOString(),
+      invoice_id: '',
       description: '',
       quantity: 1,
-      rate: 0,
-      amount: 0
+      unit_price: 0,
+      total_price: 0,
+      line_order: 0,
+      rate: 0, // For backwards compatibility
+      amount: 0 // For backwards compatibility
     }]
   });
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    const totalAmount = formData.items.reduce((sum, item) => sum + item.amount, 0);
+    const totalAmount = formData.items.reduce((sum, item) => sum + (item.total_price || item.amount || 0), 0);
     
     onCreate({
       description: formData.description,
@@ -89,10 +92,15 @@ export default function InvoiceManager({
       dueDate: new Date().toISOString().split('T')[0]!,
       items: [{
         id: '1',
+        created_at: new Date().toISOString(),
+        invoice_id: '',
         description: '',
         quantity: 1,
-        rate: 0,
-        amount: 0
+        unit_price: 0,
+        total_price: 0,
+        line_order: 0,
+        rate: 0, // For backwards compatibility
+        amount: 0 // For backwards compatibility
       }]
     });
     setShowCreateForm(false);
@@ -110,9 +118,15 @@ export default function InvoiceManager({
       const newItems = [...prev.items];
       const updatedItem = { ...newItems[index], [field]: value } as InvoiceItem;
       
-      // Auto-calculate amount if quantity or rate changes
-      if (field === 'quantity' || field === 'rate') {
-        updatedItem.amount = updatedItem.quantity * updatedItem.rate;
+      // Auto-calculate amount and total_price if quantity or rate/unit_price changes
+      if (field === 'quantity' || field === 'rate' || field === 'unit_price') {
+        const rate = updatedItem.rate || updatedItem.unit_price || 0;
+        updatedItem.total_price = updatedItem.quantity * rate;
+        updatedItem.amount = updatedItem.total_price; // For backwards compatibility
+        updatedItem.unit_price = rate; // Ensure unit_price is set
+        if (field === 'rate') {
+          updatedItem.unit_price = value; // Sync rate to unit_price
+        }
       }
       
       newItems[index] = updatedItem;
@@ -125,10 +139,15 @@ export default function InvoiceManager({
       ...prev,
       items: [...prev.items, {
         id: String(Date.now()),
+        created_at: new Date().toISOString(),
+        invoice_id: '',
         description: '',
         quantity: 1,
-        rate: 0,
-        amount: 0
+        unit_price: 0,
+        total_price: 0,
+        line_order: prev.items.length,
+        rate: 0, // For backwards compatibility
+        amount: 0 // For backwards compatibility
       }]
     }));
   };
@@ -288,8 +307,8 @@ export default function InvoiceManager({
                         <label className="block text-xs font-medium text-navy mb-1">Rate ($)</label>
                         <input
                           type="number"
-                          value={item.rate}
-                          onChange={(e) => handleItemChange(index, 'rate', Number(e.target.value))}
+                          value={item.unit_price || item.rate || 0}
+                          onChange={(e) => handleItemChange(index, 'unit_price', Number(e.target.value))}
                           min="0"
                           step="0.01"
                           className="w-full px-2 py-1 text-sm border border-input rounded focus:ring-1 focus:ring-coral focus:border-coral"
@@ -299,7 +318,7 @@ export default function InvoiceManager({
                         <div className="flex-1">
                           <label className="block text-xs font-medium text-navy mb-1">Amount</label>
                           <div className="px-2 py-1 text-sm bg-muted rounded font-medium">
-                            ${item.amount.toLocaleString()}
+                            ${(item.total_price || item.amount || 0).toLocaleString()}
                           </div>
                         </div>
                         {formData.items.length > 1 && (
@@ -320,7 +339,7 @@ export default function InvoiceManager({
                 
                 <div className="text-right pt-3 border-t border-border mt-3">
                   <div className="text-lg font-space font-semibold text-coral">
-                    Total: ${formData.items.reduce((sum, item) => sum + item.amount, 0).toLocaleString()}
+                    Total: ${formData.items.reduce((sum, item) => sum + (item.total_price || item.amount || 0), 0).toLocaleString()}
                   </div>
                 </div>
               </div>
@@ -362,8 +381,8 @@ export default function InvoiceManager({
                     </span>
                   </div>
                   <p className="text-xs text-muted-foreground">
-                    Issued {new Date(invoice.issueDate).toLocaleDateString()} • Due {new Date(invoice.dueDate).toLocaleDateString()}
-                    {invoice.paidDate && ` • Paid ${new Date(invoice.paidDate).toLocaleDateString()}`}
+                    Issued {new Date(invoice.issue_date || invoice.issueDate).toLocaleDateString()} • Due {new Date(invoice.due_date || invoice.dueDate).toLocaleDateString()}
+                    {invoice.paid_date && ` • Paid ${new Date(invoice.paid_date).toLocaleDateString()}`}
                   </p>
                   
                   {/* Invoice Items Summary */}
@@ -454,11 +473,11 @@ export default function InvoiceManager({
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 bg-muted/50 rounded-lg">
                 <div>
                   <div className="text-sm font-medium text-navy">Issue Date</div>
-                  <div className="text-sm">{new Date(selectedInvoice.issueDate).toLocaleDateString()}</div>
+                  <div className="text-sm">{new Date(selectedInvoice.issue_date || selectedInvoice.issueDate).toLocaleDateString()}</div>
                 </div>
                 <div>
                   <div className="text-sm font-medium text-navy">Due Date</div>
-                  <div className="text-sm">{new Date(selectedInvoice.dueDate).toLocaleDateString()}</div>
+                  <div className="text-sm">{new Date(selectedInvoice.due_date || selectedInvoice.dueDate).toLocaleDateString()}</div>
                 </div>
                 <div>
                   <div className="text-sm font-medium text-navy">Amount</div>
@@ -480,8 +499,8 @@ export default function InvoiceManager({
                     <div key={item.id} className="grid grid-cols-4 gap-4 p-3 border-t border-border text-sm">
                       <div className="font-medium">{item.description}</div>
                       <div className="text-center">{item.quantity}</div>
-                      <div className="text-center">${item.rate.toLocaleString()}</div>
-                      <div className="text-right font-medium">${item.amount.toLocaleString()}</div>
+                      <div className="text-center">${(item.unit_price || item.rate || 0).toLocaleString()}</div>
+                      <div className="text-right font-medium">${(item.total_price || item.amount || 0).toLocaleString()}</div>
                     </div>
                   ))}
                   <div className="p-3 border-t-2 border-navy/20 bg-muted/30">
