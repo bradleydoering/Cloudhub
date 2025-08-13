@@ -17,6 +17,7 @@ import PhotoGalleryManager from '../../src/components/PhotoGalleryManager';
 import InvoiceManager from '../../src/components/InvoiceManager';
 import NewProjectForm from '../../src/components/NewProjectForm';
 import { ProjectWithCustomer, ProjectDetails } from '../../src/types/database';
+import { useLocation } from '../../src/context/LocationContext';
 
 const tabs = [
   { id: 'overview', name: 'Overview' },
@@ -364,6 +365,9 @@ export default function ProjectsPage() {
   const [showNewProjectForm, setShowNewProjectForm] = useState(false);
   const [showProjectDetail, setShowProjectDetail] = useState(false);
   
+  // Location context
+  const { selectedLocation } = useLocation();
+  
   // Enhanced loading and error states
   const { 
     isLoading: initialLoading, 
@@ -510,31 +514,31 @@ export default function ProjectsPage() {
     {
       id: 'status-in-progress',
       label: 'Start Projects',
-      icon: '▶️',
+      icon: '▶',
       variant: 'default'
     },
     {
       id: 'status-on-hold',
       label: 'Put On Hold',
-      icon: '⏸️',
+      icon: '⏸',
       variant: 'secondary'
     },
     {
       id: 'status-completed',
       label: 'Mark Complete',
-      icon: '✅',
+      icon: '✓',
       variant: 'default'
     },
     {
       id: 'export',
       label: 'Export',
-      icon: '📄',
+      icon: '↓',
       variant: 'secondary'
     },
     {
       id: 'delete',
       label: 'Delete',
-      icon: '🗑️',
+      icon: '×',
       variant: 'destructive',
       requiresConfirmation: true,
       confirmationTitle: 'Delete Projects',
@@ -545,7 +549,7 @@ export default function ProjectsPage() {
   // Load projects from Supabase
   useEffect(() => {
     loadProjects();
-  }, []);
+  }, [selectedLocation]);
 
   // Load project details when a project is selected
   useEffect(() => {
@@ -559,6 +563,11 @@ export default function ProjectsPage() {
       startLoading();
       clearError();
       
+      let locationFilter = '';
+      if (selectedLocation && selectedLocation !== 'all') {
+        locationFilter = `WHERE c.location = '${selectedLocation}'`;
+      }
+      
       const projectsData = await ApiErrorHandler.handleAsyncOperation(
         () => executeSupabaseQuery(`
           SELECT 
@@ -568,9 +577,11 @@ export default function ProjectsPage() {
             c.phone as customer_phone,
             c.address_line1 as customer_address_line1,
             c.city as customer_city,
-            c.province as customer_province
+            c.province as customer_province,
+            c.location as customer_location
           FROM projects p
           JOIN customers c ON p.customer_id = c.id
+          ${locationFilter}
           ORDER BY p.created_at DESC
         `),
         'loading projects',
@@ -655,67 +666,8 @@ export default function ProjectsPage() {
   // Execute Supabase queries using MCP
   const executeSupabaseQuery = async (sql: string, params: any[] = []): Promise<any[]> => {
     try {
-      // This would use the MCP Supabase client
-      // For now, return empty data to prevent runtime errors
-      console.log('Would execute Supabase query:', sql, params);
-      
-      // Mock some sample data for demonstration
-      if (sql.includes('SELECT') && sql.includes('documents')) {
-        return [
-          {
-            id: '1',
-            name: 'Building Plans.pdf',
-            type: 'application/pdf',
-            size: 2048576,
-            category: 'plan',
-            upload_date: '2024-01-15T10:00:00Z',
-            uploaded_by: 'John Doe',
-            file_url: '/storage/documents/building-plans.pdf',
-            description: 'Main building plans and elevations'
-          },
-          {
-            id: '2', 
-            name: 'Contract Agreement.pdf',
-            type: 'application/pdf',
-            size: 512000,
-            category: 'contract',
-            upload_date: '2024-01-10T14:30:00Z',
-            uploaded_by: 'Jane Smith',
-            file_url: '/storage/documents/contract.pdf',
-            description: 'Signed construction contract'
-          }
-        ];
-      }
-      
-      if (sql.includes('SELECT') && sql.includes('change_orders')) {
-        return [
-          {
-            id: '1',
-            title: 'Upgrade Kitchen Countertops',
-            description: 'Client requested upgrade from laminate to quartz countertops',
-            amount: 3500,
-            status: 'pending',
-            priority: 'medium',
-            submitted_by: 'Project Manager',
-            submitted_date: '2024-01-20T09:00:00Z'
-          },
-          {
-            id: '2',
-            title: 'Add Extra Electrical Outlet',
-            description: 'Add GFCI outlet in bathroom per building code requirements',
-            amount: 150,
-            status: 'approved',
-            priority: 'high',
-            submitted_by: 'Electrician',
-            submitted_date: '2024-01-18T11:15:00Z',
-            approved_by: 'Site Supervisor',
-            approval_date: '2024-01-19T08:30:00Z',
-            reason: 'Safety compliance required'
-          }
-        ];
-      }
-      
-      return [];
+      const result = await mcp__supabase__execute_sql({ query: sql });
+      return result || [];
     } catch (error) {
       console.error('Error executing Supabase query:', error);
       throw error;

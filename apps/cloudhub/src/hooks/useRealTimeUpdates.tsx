@@ -45,8 +45,8 @@ export const useRealTimeUpdates = ({
       const mockUpdates: StatusUpdate[] = [];
       const now = new Date();
       
-      // Randomly generate some updates for demo purposes
-      if (Math.random() < 0.3) { // 30% chance of having updates
+      // Disable random demo notifications - only show user-triggered notifications
+      if (false) { // Disabled random notifications
         const updateTypes: StatusUpdate['type'][] = ['project', 'deal', 'customer', 'document', 'change_order', 'invoice'];
         const randomType = updateTypes[Math.floor(Math.random() * updateTypes.length)];
         

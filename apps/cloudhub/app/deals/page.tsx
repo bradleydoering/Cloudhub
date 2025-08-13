@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { Button } from '@cloudreno/ui';
 import { useNotificationHelpers } from '../../src/components/NotificationSystem';
 import { useDealUpdates, useRealTimeUpdates } from '../../src/hooks/useRealTimeUpdates';
@@ -10,6 +10,7 @@ import Modal from '../../src/components/Modal';
 import DealDetailView from '../../src/components/DealDetailView';
 import ImportDealsForm from '../../src/components/ImportDealsForm';
 import NewDealForm from '../../src/components/NewDealForm';
+import { useLocation } from '../../src/context/LocationContext';
 
 type Deal = {
   id: string;
@@ -73,22 +74,26 @@ const mockDeals: Deal[] = [
 const stages = [
   { id: 'new', name: 'New', color: 'bg-navy/10 text-navy' },
   { id: 'qualified', name: 'Qualified', color: 'bg-navy/15 text-navy' },
-  { id: 'estimating', name: 'Estimating', color: 'bg-coral/10 text-coral' },
-  { id: 'proposal-sent', name: 'Proposal Sent', color: 'bg-coral/15 text-coral' },
-  { id: 'negotiation', name: 'Negotiation', color: 'bg-coral/20 text-coral' },
-  { id: 'closed-won', name: 'Closed Won', color: 'bg-navy/20 text-navy' },
+  { id: 'proposal', name: 'Proposal', color: 'bg-coral/10 text-coral' },
+  { id: 'negotiation', name: 'Negotiation', color: 'bg-coral/15 text-coral' },
+  { id: 'won', name: 'Won', color: 'bg-navy/20 text-navy' },
+  { id: 'lost', name: 'Lost', color: 'bg-gray-100 text-gray-800' },
 ];
 
 function DealCard({ 
   deal, 
   onClick, 
   isSelected, 
-  onToggleSelect 
+  onToggleSelect,
+  onDragStart,
+  onDragEnd
 }: { 
   deal: Deal;
   onClick: (deal: Deal) => void;
   isSelected?: boolean;
   onToggleSelect?: (id: string) => void;
+  onDragStart?: (deal: Deal) => void;
+  onDragEnd?: () => void;
 }) {
   const priorityColors = {
     low: 'border-l-navy/40',
@@ -99,6 +104,9 @@ function DealCard({
 
   return (
     <div 
+      draggable
+      onDragStart={() => onDragStart?.(deal)}
+      onDragEnd={() => onDragEnd?.()}
       className={`bg-card border border-border p-4 border-l-4 ${priorityColors[deal.priority]} [clip-path:polygon(0.5rem_0%,100%_0%,100%_calc(100%-0.5rem),calc(100%-0.5rem)_100%,0%_100%,0%_0.5rem)] hover:shadow-md transition-shadow cursor-pointer ${
         isSelected ? 'ring-2 ring-coral bg-coral/5' : ''
       }`}
@@ -148,7 +156,11 @@ function KanbanColumn({
   onDealClick, 
   onAddDeal,
   selectedIds,
-  onToggleSelect 
+  onToggleSelect,
+  onDragStart,
+  onDragEnd,
+  onDrop,
+  draggedDeal
 }: { 
   stage: typeof stages[0];
   deals: Deal[];
@@ -156,7 +168,30 @@ function KanbanColumn({
   onAddDeal: (stage: string) => void;
   selectedIds?: Set<string>;
   onToggleSelect?: (id: string) => void;
+  onDragStart?: (deal: Deal) => void;
+  onDragEnd?: () => void;
+  onDrop?: (deal: Deal, newStage: string) => void;
+  draggedDeal?: Deal | null;
 }) {
+  const [isDraggedOver, setIsDraggedOver] = useState(false);
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDraggedOver(true);
+  };
+
+  const handleDragLeave = () => {
+    setIsDraggedOver(false);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDraggedOver(false);
+    if (draggedDeal && onDrop) {
+      onDrop(draggedDeal, stage.id);
+    }
+  };
+
   return (
     <div className="flex-1 min-w-80">
       <div className="bg-muted p-3 mb-4 [clip-path:polygon(0.3rem_0%,100%_0%,100%_calc(100%-0.3rem),calc(100%-0.3rem)_100%,0%_100%,0%_0.3rem)]">
@@ -178,7 +213,14 @@ function KanbanColumn({
         </div>
       </div>
       
-      <div className="space-y-3">
+      <div 
+        className={`space-y-3 min-h-32 p-2 rounded-lg transition-colors ${
+          isDraggedOver ? 'bg-coral/10 border-2 border-coral border-dashed' : ''
+        }`}
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDrop}
+      >
         {deals.map(deal => (
           <DealCard 
             key={deal.id} 
@@ -186,20 +228,33 @@ function KanbanColumn({
             onClick={onDealClick}
             isSelected={selectedIds?.has(deal.id)}
             onToggleSelect={onToggleSelect}
+            onDragStart={onDragStart}
+            onDragEnd={onDragEnd}
           />
         ))}
+        {deals.length === 0 && (
+          <div className="text-center text-muted-foreground text-sm py-8">
+            Drop deals here or click + to add
+          </div>
+        )}
       </div>
     </div>
   );
 }
 
 export default function DealsPage() {
-  const [deals, setDeals] = useState<Deal[]>(mockDeals);
+  const [deals, setDeals] = useState<Deal[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [showNewDealModal, setShowNewDealModal] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
   const [showDealDetailModal, setShowDealDetailModal] = useState(false);
   const [selectedDeal, setSelectedDeal] = useState<Deal | null>(null);
   const [newDealStage, setNewDealStage] = useState<string>('new');
+  const [draggedDeal, setDraggedDeal] = useState<Deal | null>(null);
+  
+  // Location context
+  const { selectedLocation } = useLocation();
   
   // Real-time updates and notifications
   const { notifySuccess, notifyInfo, notifyError } = useNotificationHelpers();
@@ -282,25 +337,25 @@ export default function DealsPage() {
     {
       id: 'stage-qualified',
       label: 'Mark Qualified',
-      icon: '✅',
+      icon: '✓',
       variant: 'default'
     },
     {
       id: 'stage-proposal-sent',
       label: 'Send Proposal',
-      icon: '📄',
+      icon: '→',
       variant: 'default'
     },
     {
       id: 'stage-closed-won',
       label: 'Mark Won',
-      icon: '🎉',
+      icon: '✓',
       variant: 'default'
     },
     {
       id: 'convert-to-project',
       label: 'Convert to Projects',
-      icon: '🚀',
+      icon: '→',
       variant: 'default',
       requiresConfirmation: true,
       confirmationTitle: 'Convert Deals to Projects',
@@ -309,13 +364,13 @@ export default function DealsPage() {
     {
       id: 'export',
       label: 'Export',
-      icon: '📊',
+      icon: '↓',
       variant: 'secondary'
     },
     {
       id: 'delete',
       label: 'Delete',
-      icon: '🗑️',
+      icon: '×',
       variant: 'destructive',
       requiresConfirmation: true,
       confirmationTitle: 'Delete Deals',
@@ -331,11 +386,88 @@ export default function DealsPage() {
   const totalValue = filteredDeals.reduce((sum, deal) => sum + deal.value, 0);
   const averageValue = filteredDeals.length > 0 ? totalValue / filteredDeals.length : 0;
 
+  // Load deals from Supabase
+  useEffect(() => {
+    loadDeals();
+  }, [selectedLocation]);
+
+  const loadDeals = async () => {
+    try {
+      setLoading(true);
+      
+      let locationFilter = '';
+      let queryParams = [];
+      
+      if (selectedLocation && selectedLocation !== 'all') {
+        locationFilter = 'WHERE c.location = $1';
+        queryParams = [selectedLocation];
+      }
+      
+      const dealsData = await executeSupabaseQuery(`
+        SELECT 
+          d.*,
+          c.name as customer_name,
+          c.location as customer_location
+        FROM deals d
+        LEFT JOIN customers c ON d.customer_id = c.id
+        ${locationFilter}
+        ORDER BY d.created_at DESC
+      `, queryParams);
+      
+      const mappedDeals: Deal[] = dealsData.map((row: any) => ({
+        id: row.id,
+        title: row.title,
+        customer: row.customer_name || 'Unknown Customer',
+        value: parseFloat(row.value) || 0,
+        stage: row.stage,
+        priority: row.priority,
+        expectedClose: row.expected_close_date,
+        source: row.source || 'unknown',
+        lastActivity: row.last_activity || 'No recent activity'
+      }));
+
+      setDeals(mappedDeals);
+    } catch (err) {
+      setError('Failed to load deals');
+      console.error('Error loading deals:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Execute Supabase queries using MCP
+  const executeSupabaseQuery = async (sql: string, params: any[] = []): Promise<any[]> => {
+    try {
+      // For parameterized queries, we need to handle parameter substitution
+      let processedSql = sql;
+      if (params && params.length > 0) {
+        params.forEach((param, index) => {
+          const placeholder = `$${index + 1}`;
+          processedSql = processedSql.replace(placeholder, `'${param}'`);
+        });
+      }
+      
+      const result = await mcp__supabase__execute_sql({ query: processedSql });
+      return result || [];
+    } catch (error) {
+      console.error('Error executing Supabase query:', error);
+      throw error;
+    }
+  };
+
   // Bulk action handler for deals
   const handleBulkAction = async (actionId: string, selectedDeals: Deal[]) => {
     try {
       switch (actionId) {
         case 'stage-qualified':
+          await Promise.all(
+            selectedDeals.map(deal =>
+              executeSupabaseQuery(
+                'UPDATE deals SET stage = $2, updated_at = NOW() WHERE id = $1',
+                [deal.id, 'qualified']
+              )
+            )
+          );
           setDeals(prev => prev.map(d => 
             selectedDeals.some(sd => sd.id === d.id) 
               ? { ...d, stage: 'qualified' }
@@ -348,31 +480,76 @@ export default function DealsPage() {
           break;
 
         case 'stage-proposal-sent':
+          await Promise.all(
+            selectedDeals.map(deal =>
+              executeSupabaseQuery(
+                'UPDATE deals SET stage = $2, updated_at = NOW() WHERE id = $1',
+                [deal.id, 'proposal']
+              )
+            )
+          );
           setDeals(prev => prev.map(d => 
             selectedDeals.some(sd => sd.id === d.id) 
-              ? { ...d, stage: 'proposal-sent' }
+              ? { ...d, stage: 'proposal' }
               : d
           ));
           selectedDeals.forEach(deal => {
-            notifyDealStageChange(deal.id, deal.title, deal.stage, 'proposal-sent');
+            notifyDealStageChange(deal.id, deal.title, deal.stage, 'proposal');
           });
           notifySuccess('Proposals Sent', `${selectedDeals.length} proposals sent to clients`);
           break;
 
         case 'stage-closed-won':
+          await Promise.all(
+            selectedDeals.map(deal =>
+              executeSupabaseQuery(
+                'UPDATE deals SET stage = $2, updated_at = NOW() WHERE id = $1',
+                [deal.id, 'won']
+              )
+            )
+          );
           setDeals(prev => prev.map(d => 
             selectedDeals.some(sd => sd.id === d.id) 
-              ? { ...d, stage: 'closed-won' }
+              ? { ...d, stage: 'won' }
               : d
           ));
           selectedDeals.forEach(deal => {
-            notifyDealStageChange(deal.id, deal.title, deal.stage, 'closed-won');
+            notifyDealStageChange(deal.id, deal.title, deal.stage, 'won');
           });
           notifySuccess('Deals Won! 🎉', `${selectedDeals.length} deals marked as won`);
           break;
 
         case 'convert-to-project':
-          // Remove deals from pipeline
+          // Convert deals to projects and remove from deals table
+          for (const deal of selectedDeals) {
+            const projectNumber = `CR-${new Date().getFullYear()}-${String(Math.floor(Math.random() * 999) + 1).padStart(3, '0')}`;
+            
+            // Create project from deal
+            const projectResult = await executeSupabaseQuery(`
+              INSERT INTO projects (
+                project_number, title, description, customer_id, status, priority,
+                contract_amount, start_date, expected_completion, manager, project_type
+              ) 
+              SELECT 
+                $1, $2, $3, customer_id, 'not-started', priority,
+                value, CURRENT_DATE, expected_close_date, 'TBD', 'renovation'
+              FROM deals WHERE id = $4
+              RETURNING id
+            `, [projectNumber, deal.title, `Converted from deal: ${deal.title}`, deal.id]);
+            
+            // Update deal with project reference before deleting
+            if (projectResult && projectResult.length > 0) {
+              await executeSupabaseQuery(
+                'UPDATE deals SET converted_to_project_id = $1 WHERE id = $2',
+                [projectResult[0].id, deal.id]
+              );
+            }
+            
+            // Remove deal from deals table
+            await executeSupabaseQuery('DELETE FROM deals WHERE id = $1', [deal.id]);
+          }
+          
+          // Remove deals from local state
           setDeals(prev => prev.filter(d => !selectedDeals.some(sd => sd.id === d.id)));
           selectedDeals.forEach(deal => {
             notifySuccess(
@@ -398,6 +575,11 @@ export default function DealsPage() {
           break;
 
         case 'delete':
+          await Promise.all(
+            selectedDeals.map(deal =>
+              executeSupabaseQuery('DELETE FROM deals WHERE id = $1', [deal.id])
+            )
+          );
           setDeals(prev => prev.filter(d => !selectedDeals.some(sd => sd.id === d.id)));
           notifyInfo('Deals Deleted', `${selectedDeals.length} deals removed from pipeline`);
           break;
@@ -411,20 +593,37 @@ export default function DealsPage() {
     }
   };
 
-  const handleNewDeal = (dealData: any) => {
-    const newDeal = {
-      ...dealData,
-      id: `deal-${Date.now()}`,
-      stage: newDealStage,
-      lastActivity: 'just now'
-    };
-    setDeals(prev => [...prev, newDeal]);
-    setShowNewDealModal(false);
-    setNewDealStage('new');
-    
-    // Notify about new deal creation
-    notifyNewDeal(newDeal.title, newDeal.value);
-    notifySuccess('Deal Created', `New deal "${newDeal.title}" has been added to the pipeline`);
+  const handleNewDeal = async (dealData: any) => {
+    try {
+      await executeSupabaseQuery(`
+        INSERT INTO deals (
+          title, description, customer_id, value, stage, priority, 
+          expected_close_date, source, notes
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+      `, [
+        dealData.title,
+        dealData.description,
+        dealData.customer_id,
+        dealData.value,
+        newDealStage,
+        dealData.priority,
+        dealData.expectedClose,
+        dealData.source,
+        dealData.notes
+      ]);
+
+      // Reload deals
+      await loadDeals();
+      setShowNewDealModal(false);
+      setNewDealStage('new');
+      
+      // Notify about new deal creation
+      notifyNewDeal(dealData.title, dealData.value);
+      notifySuccess('Deal Created', `New deal "${dealData.title}" has been added to the pipeline`);
+    } catch (err) {
+      console.error('Error creating deal:', err);
+      notifyError('Creation Failed', 'Failed to create deal. Please try again.');
+    }
   };
 
   const handleImportDeals = (importedDeals: Deal[]) => {
@@ -440,61 +639,178 @@ export default function DealsPage() {
     setShowDealDetailModal(true);
   };
 
-  const handleUpdateDeal = (updatedDeal: Deal) => {
-    const previousDeal = deals.find(d => d.id === updatedDeal.id);
-    const stageChanged = previousDeal && previousDeal.stage !== updatedDeal.stage;
-    
-    setDeals(prev => prev.map(deal => 
-      deal.id === updatedDeal.id ? updatedDeal : deal
-    ));
-    setSelectedDeal(updatedDeal);
-    
-    // Notify about stage changes
-    if (stageChanged && previousDeal) {
-      notifyDealStageChange(
-        updatedDeal.id, 
-        updatedDeal.title, 
-        previousDeal.stage, 
-        updatedDeal.stage
+  const handleUpdateDeal = async (updatedDeal: Deal) => {
+    try {
+      const previousDeal = deals.find(d => d.id === updatedDeal.id);
+      const stageChanged = previousDeal && previousDeal.stage !== updatedDeal.stage;
+      
+      await executeSupabaseQuery(`
+        UPDATE deals 
+        SET title = $2, description = $3, value = $4, stage = $5, priority = $6,
+            expected_close_date = $7, source = $8, notes = $9, updated_at = NOW()
+        WHERE id = $1
+      `, [
+        updatedDeal.id,
+        updatedDeal.title,
+        updatedDeal.description || '',
+        updatedDeal.value,
+        updatedDeal.stage,
+        updatedDeal.priority,
+        updatedDeal.expectedClose,
+        updatedDeal.source,
+        updatedDeal.notes || ''
+      ]);
+
+      // Update local state
+      setDeals(prev => prev.map(deal => 
+        deal.id === updatedDeal.id ? updatedDeal : deal
+      ));
+      setSelectedDeal(updatedDeal);
+      
+      // Notify about stage changes
+      if (stageChanged && previousDeal) {
+        notifyDealStageChange(
+          updatedDeal.id, 
+          updatedDeal.title, 
+          previousDeal.stage, 
+          updatedDeal.stage
+        );
+      }
+      
+      // General update notification
+      notifySuccess('Deal Updated', `${updatedDeal.title} has been updated successfully`);
+    } catch (err) {
+      console.error('Error updating deal:', err);
+      notifyError('Update Failed', 'Failed to update deal. Please try again.');
+    }
+  };
+
+  const handleDeleteDeal = async (dealId: string) => {
+    try {
+      const dealToDelete = deals.find(d => d.id === dealId);
+      
+      await executeSupabaseQuery('DELETE FROM deals WHERE id = $1', [dealId]);
+      
+      setDeals(prev => prev.filter(deal => deal.id !== dealId));
+      setShowDealDetailModal(false);
+      setSelectedDeal(null);
+      
+      // Notify about deletion
+      if (dealToDelete) {
+        notifyInfo('Deal Deleted', `"${dealToDelete.title}" has been removed from the pipeline`);
+      }
+    } catch (err) {
+      console.error('Error deleting deal:', err);
+      notifyError('Delete Failed', 'Failed to delete deal. Please try again.');
+    }
+  };
+
+  const handleConvertToProject = async (deal: Deal) => {
+    try {
+      const projectNumber = `CR-${new Date().getFullYear()}-${String(Math.floor(Math.random() * 999) + 1).padStart(3, '0')}`;
+      
+      // Create project from deal
+      const projectResult = await executeSupabaseQuery(`
+        INSERT INTO projects (
+          project_number, title, description, customer_id, status, priority,
+          contract_amount, start_date, expected_completion, manager, project_type
+        ) 
+        SELECT 
+          $1, $2, $3, customer_id, 'not-started', priority,
+          value, CURRENT_DATE, expected_close_date, 'TBD', 'renovation'
+        FROM deals WHERE id = $4
+        RETURNING id
+      `, [projectNumber, deal.title, `Converted from deal: ${deal.title}`, deal.id]);
+      
+      // Update deal with project reference before deleting
+      if (projectResult && projectResult.length > 0) {
+        await executeSupabaseQuery(
+          'UPDATE deals SET converted_to_project_id = $1 WHERE id = $2',
+          [projectResult[0].id, deal.id]
+        );
+      }
+      
+      // Remove deal from deals table
+      await executeSupabaseQuery('DELETE FROM deals WHERE id = $1', [deal.id]);
+      
+      // Update local state
+      setDeals(prev => prev.filter(d => d.id !== deal.id));
+      setShowDealDetailModal(false);
+      setSelectedDeal(null);
+      
+      // Notify about successful conversion
+      notifySuccess(
+        'Deal Converted! 🎉', 
+        `"${deal.title}" has been converted to a project and moved to the Projects section`
       );
+      
+      // Also trigger deal stage change to 'won'
+      notifyDealStageChange(deal.id, deal.title, deal.stage, 'won');
+    } catch (err) {
+      console.error('Error converting deal to project:', err);
+      notifyError('Conversion Failed', 'Failed to convert deal to project. Please try again.');
     }
-    
-    // General update notification
-    notifySuccess('Deal Updated', `${updatedDeal.title} has been updated successfully`);
-  };
-
-  const handleDeleteDeal = (dealId: string) => {
-    const dealToDelete = deals.find(d => d.id === dealId);
-    setDeals(prev => prev.filter(deal => deal.id !== dealId));
-    setShowDealDetailModal(false);
-    setSelectedDeal(null);
-    
-    // Notify about deletion
-    if (dealToDelete) {
-      notifyInfo('Deal Deleted', `"${dealToDelete.title}" has been removed from the pipeline`);
-    }
-  };
-
-  const handleConvertToProject = (deal: Deal) => {
-    // In a real app, this would create a project and remove the deal
-    setDeals(prev => prev.filter(d => d.id !== deal.id));
-    setShowDealDetailModal(false);
-    setSelectedDeal(null);
-    
-    // Notify about successful conversion
-    notifySuccess(
-      'Deal Converted! 🎉', 
-      `"${deal.title}" has been converted to a project and moved to the Projects section`
-    );
-    
-    // Also trigger deal stage change to 'won'
-    notifyDealStageChange(deal.id, deal.title, deal.stage, 'won');
   };
 
   const handleAddDealToStage = (stage: string) => {
     setNewDealStage(stage);
     setShowNewDealModal(true);
   };
+
+  const handleDragStart = (deal: Deal) => {
+    setDraggedDeal(deal);
+  };
+
+  const handleDragEnd = () => {
+    setDraggedDeal(null);
+  };
+
+  const handleDrop = async (deal: Deal, newStage: string) => {
+    if (deal.stage === newStage) return; // No change needed
+
+    try {
+      // Update database
+      await executeSupabaseQuery(
+        'UPDATE deals SET stage = $1, updated_at = NOW() WHERE id = $2',
+        [newStage, deal.id]
+      );
+
+      // Update local state
+      setDeals(prev => prev.map(d => 
+        d.id === deal.id ? { ...d, stage: newStage } : d
+      ));
+
+      // Notify about stage change
+      notifyDealStageChange(deal.id, deal.title, deal.stage, newStage);
+      notifySuccess('Deal Updated', `"${deal.title}" moved to ${stages.find(s => s.id === newStage)?.name}`);
+    } catch (err) {
+      console.error('Error updating deal stage:', err);
+      notifyError('Update Failed', 'Failed to update deal stage. Please try again.');
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center">
+          <div className="text-4xl mb-4">⏳</div>
+          <p className="text-muted-foreground">Loading deals...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center">
+          <div className="text-4xl mb-4">❌</div>
+          <p className="text-red-600">{error}</p>
+          <Button onClick={loadDeals} className="mt-4">Retry</Button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -514,46 +830,53 @@ export default function DealsPage() {
         </div>
       </div>
 
-      {/* Search and Filters */}
-      <SearchFilters
-        searchTerm={searchTerm}
-        onSearchChange={setSearchTerm}
-        filters={filterOptions}
-        activeFilters={activeFilters}
-        onFilterChange={handleFilterChange}
-        onClearFilters={clearFilters}
-        showAdvanced={showAdvanced}
-        onToggleAdvanced={toggleAdvanced}
-      />
+      {/* Sticky Search, Filters, and Stats */}
+      <div className="sticky top-0 z-10 bg-background/95 backdrop-blur-sm border-b border-border pb-6 mb-6">
+        {/* Search and Filters */}
+        <div className="mb-4">
+          <SearchFilters
+            searchTerm={searchTerm}
+            onSearchChange={setSearchTerm}
+            filters={filterOptions}
+            activeFilters={activeFilters}
+            onFilterChange={handleFilterChange}
+            onClearFilters={clearFilters}
+            showAdvanced={showAdvanced}
+            onToggleAdvanced={toggleAdvanced}
+          />
+        </div>
 
-      {/* Bulk Actions */}
-      <BulkActions
-        selectedItems={selectedItems}
-        onClearSelection={clearSelection}
-        actions={bulkActions}
-        onAction={handleBulkAction}
-        itemName="deals"
-      />
+        {/* Bulk Actions */}
+        <div className="mb-4">
+          <BulkActions
+            selectedItems={selectedItems}
+            onClearSelection={clearSelection}
+            actions={bulkActions}
+            onAction={handleBulkAction}
+            itemName="deals"
+          />
+        </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div className="bg-card border border-border p-4 [clip-path:polygon(0.5rem_0%,100%_0%,100%_calc(100%-0.5rem),calc(100%-0.5rem)_100%,0%_100%,0%_0.5rem)]">
-          <div className="text-2xl font-space font-semibold text-navy">{filteredDeals.length}</div>
-          <div className="text-sm text-muted-foreground">
-            {searchTerm || Object.keys(activeFilters).length > 0 ? 'Filtered Deals' : 'Active Deals'}
+        {/* Stats */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div className="bg-card border border-border p-4 [clip-path:polygon(0.5rem_0%,100%_0%,100%_calc(100%-0.5rem),calc(100%-0.5rem)_100%,0%_100%,0%_0.5rem)]">
+            <div className="text-2xl font-space font-semibold text-navy">{filteredDeals.length}</div>
+            <div className="text-sm text-muted-foreground">
+              {searchTerm || Object.keys(activeFilters).length > 0 ? 'Filtered Deals' : 'Active Deals'}
+            </div>
           </div>
-        </div>
-        <div className="bg-card border border-border p-4 [clip-path:polygon(0.5rem_0%,100%_0%,100%_calc(100%-0.5rem),calc(100%-0.5rem)_100%,0%_100%,0%_0.5rem)]">
-          <div className="text-2xl font-space font-semibold text-coral">${totalValue.toLocaleString()}</div>
-          <div className="text-sm text-muted-foreground">Total Pipeline Value</div>
-        </div>
-        <div className="bg-card border border-border p-4 [clip-path:polygon(0.5rem_0%,100%_0%,100%_calc(100%-0.5rem),calc(100%-0.5rem)_100%,0%_100%,0%_0.5rem)]">
-          <div className="text-2xl font-space font-semibold text-navy">${averageValue.toLocaleString()}</div>
-          <div className="text-sm text-muted-foreground">Average Deal Size</div>
-        </div>
-        <div className="bg-card border border-border p-4 [clip-path:polygon(0.5rem_0%,100%_0%,100%_calc(100%-0.5rem),calc(100%-0.5rem)_100%,0%_100%,0%_0.5rem)]">
-          <div className="text-2xl font-space font-semibold text-navy">78%</div>
-          <div className="text-sm text-muted-foreground">Close Rate</div>
+          <div className="bg-card border border-border p-4 [clip-path:polygon(0.5rem_0%,100%_0%,100%_calc(100%-0.5rem),calc(100%-0.5rem)_100%,0%_100%,0%_0.5rem)]">
+            <div className="text-2xl font-space font-semibold text-coral">${totalValue.toLocaleString()}</div>
+            <div className="text-sm text-muted-foreground">Total Pipeline Value</div>
+          </div>
+          <div className="bg-card border border-border p-4 [clip-path:polygon(0.5rem_0%,100%_0%,100%_calc(100%-0.5rem),calc(100%-0.5rem)_100%,0%_100%,0%_0.5rem)]">
+            <div className="text-2xl font-space font-semibold text-navy">${averageValue.toLocaleString()}</div>
+            <div className="text-sm text-muted-foreground">Average Deal Size</div>
+          </div>
+          <div className="bg-card border border-border p-4 [clip-path:polygon(0.5rem_0%,100%_0%,100%_calc(100%-0.5rem),calc(100%-0.5rem)_100%,0%_100%,0%_0.5rem)]">
+            <div className="text-2xl font-space font-semibold text-navy">78%</div>
+            <div className="text-sm text-muted-foreground">Close Rate</div>
+          </div>
         </div>
       </div>
 
@@ -569,6 +892,10 @@ export default function DealsPage() {
               onAddDeal={handleAddDealToStage}
               selectedIds={selectedIds}
               onToggleSelect={toggleItem}
+              onDragStart={handleDragStart}
+              onDragEnd={handleDragEnd}
+              onDrop={handleDrop}
+              draggedDeal={draggedDeal}
             />
           ))}
         </div>

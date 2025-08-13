@@ -9,6 +9,7 @@ import CustomerDetailView from '../../src/components/CustomerDetailView';
 import NewCustomerForm from '../../src/components/NewCustomerForm';
 import ImportCustomersForm from '../../src/components/ImportCustomersForm';
 import { Customer } from '../../src/types/database';
+import { useLocation } from '../../src/context/LocationContext';
 
 function CustomerCard({ 
   customer, 
@@ -96,6 +97,9 @@ export default function CustomersPage() {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  
+  // Location context
+  const { selectedLocation } = useLocation();
   
   // Modal states
   const [showNewCustomerModal, setShowNewCustomerModal] = useState(false);
@@ -202,25 +206,25 @@ export default function CustomersPage() {
     {
       id: 'status-active',
       label: 'Mark Active',
-      icon: '✅',
+      icon: '✓',
       variant: 'default'
     },
     {
       id: 'status-inactive',
       label: 'Mark Inactive',
-      icon: '⏸️',
+      icon: '⏸',
       variant: 'secondary'
     },
     {
       id: 'export',
       label: 'Export',
-      icon: '📄',
+      icon: '↓',
       variant: 'secondary'
     },
     {
       id: 'delete',
       label: 'Delete',
-      icon: '🗑️',
+      icon: '×',
       variant: 'destructive',
       requiresConfirmation: true,
       confirmationTitle: 'Delete Customers',
@@ -231,13 +235,20 @@ export default function CustomersPage() {
   // Load customers from Supabase
   useEffect(() => {
     loadCustomers();
-  }, []);
+  }, [selectedLocation]);
 
   const loadCustomers = async () => {
     try {
       setLoading(true);
+      
+      let locationFilter = '';
+      if (selectedLocation && selectedLocation !== 'all') {
+        locationFilter = `WHERE location = '${selectedLocation}'`;
+      }
+      
       const customersData = await executeSupabaseQuery(`
         SELECT * FROM customers 
+        ${locationFilter}
         ORDER BY created_at DESC
       `);
       setCustomers(customersData);
@@ -252,10 +263,17 @@ export default function CustomersPage() {
   // Execute Supabase queries using MCP
   const executeSupabaseQuery = async (sql: string, params: any[] = []): Promise<any[]> => {
     try {
-      // This would use the MCP Supabase client
-      // For now, return empty data to prevent runtime errors
-      console.log('Would execute Supabase query:', sql, params);
-      return [];
+      // For parameterized queries, we need to handle parameter substitution
+      let processedSql = sql;
+      if (params && params.length > 0) {
+        params.forEach((param, index) => {
+          const placeholder = `$${index + 1}`;
+          processedSql = processedSql.replace(placeholder, `'${param}'`);
+        });
+      }
+      
+      const result = await mcp__supabase__execute_sql({ query: processedSql });
+      return result || [];
     } catch (error) {
       console.error('Error executing Supabase query:', error);
       throw error;
