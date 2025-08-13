@@ -13,96 +13,120 @@ import {
   ProjectDetails
 } from '../types/database';
 
-// In-memory mock data that persists during session
-let mockDeals: Deal[] = [
-  {
-    id: '1',
-    title: 'Kitchen Renovation - Doe Residence',
-    customer_id: '1',
-    customer_name: 'John & Jane Doe',
-    value: 35000,
-    stage: 'new',
-    priority: 'high',
-    probability: 75,
-    expected_close_date: '2025-09-15',
-    source: 'website',
-    notes: 'Initial consultation completed',
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString()
-  },
-  {
-    id: '2',
-    title: 'Master Suite Addition',
-    customer_id: '2', 
-    customer_name: 'Alice Wong',
-    value: 75000,
-    stage: 'qualified',
-    priority: 'urgent',
-    probability: 85,
-    expected_close_date: '2025-08-20',
-    source: 'referral',
-    notes: 'High priority client',
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString()
-  },
-  {
-    id: '3',
-    title: 'Bathroom Remodel - Smith Home',
-    customer_id: '3',
-    customer_name: 'Bob Smith', 
-    value: 18000,
-    stage: 'qualified',
-    priority: 'medium',
-    probability: 60,
-    expected_close_date: '2025-10-01',
-    source: 'design-library',
-    notes: 'Waiting for material selection',
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString()
-  }
-];
+// Persistent mock database - simulates real database that maintains state across sessions
+// Initialize with seed data only if not already initialized
 
-let mockProjects: ProjectWithCustomer[] = [
-  {
-    id: '1',
-    title: 'Kitchen Renovation - Doe Residence',
-    customer_id: '1',
-    status: 'in-progress',
-    percent_complete: 45,
-    contract_amount: 35000,
-    start_date: '2024-12-01',
-    expected_completion: '2025-03-15',
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-    project_number: 'PRJ-001',
-    manager: 'John Manager',
-    priority: 'high',
-    customer: { 
-      id: '1', 
-      name: 'John & Jane Doe', 
-      email: 'doe@example.com', 
-      phone: '555-0101',
-      customer_type: 'individual',
-      status: 'active',
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString()
-    }
+const initializeDatabase = () => {
+  if (!(globalThis as any).__mockDatabase) {
+    const now = new Date().toISOString();
+    
+    (globalThis as any).__mockDatabase = {
+      deals: [
+        {
+          id: '1',
+          title: 'Kitchen Renovation - Doe Residence',
+          customer_id: '1',
+          customer_name: 'John & Jane Doe',
+          value: 35000,
+          stage: 'new',
+          priority: 'high',
+          probability: 75,
+          expected_close_date: '2025-09-15',
+          source: 'website',
+          notes: 'Initial consultation completed',
+          created_at: now,
+          updated_at: now
+        },
+        {
+          id: '2',
+          title: 'Master Suite Addition',
+          customer_id: '2', 
+          customer_name: 'Alice Wong',
+          value: 75000,
+          stage: 'qualified',
+          priority: 'urgent',
+          probability: 85,
+          expected_close_date: '2025-08-20',
+          source: 'referral',
+          notes: 'High priority client',
+          created_at: now,
+          updated_at: now
+        },
+        {
+          id: '3',
+          title: 'Bathroom Remodel - Smith Home',
+          customer_id: '3',
+          customer_name: 'Bob Smith', 
+          value: 18000,
+          stage: 'qualified',
+          priority: 'medium',
+          probability: 60,
+          expected_close_date: '2025-10-01',
+          source: 'design-library',
+          notes: 'Waiting for material selection',
+          created_at: now,
+          updated_at: now
+        }
+      ] as Deal[],
+      
+      projects: [
+        {
+          id: '1',
+          title: 'Kitchen Renovation - Doe Residence',
+          customer_id: '1',
+          status: 'in-progress',
+          percent_complete: 45,
+          contract_amount: 35000,
+          start_date: '2024-12-01',
+          expected_completion: '2025-03-15',
+          created_at: now,
+          updated_at: now,
+          project_number: 'PRJ-001',
+          manager: 'John Manager',
+          priority: 'high',
+          customer: { 
+            id: '1', 
+            name: 'John & Jane Doe', 
+            email: 'doe@example.com', 
+            phone: '555-0101',
+            customer_type: 'individual',
+            status: 'active',
+            created_at: now,
+            updated_at: now
+          }
+        }
+      ] as ProjectWithCustomer[],
+      
+      customers: [
+        { id: '1', name: 'John & Jane Doe', email: 'doe@example.com', phone: '555-0101', status: 'active', customer_type: 'individual', created_at: now, updated_at: now },
+        { id: '2', name: 'Alice Wong', email: 'alice@example.com', phone: '555-0102', status: 'active', customer_type: 'individual', created_at: now, updated_at: now },
+        { id: '3', name: 'Bob Smith', email: 'bob@example.com', phone: '555-0103', status: 'active', customer_type: 'individual', created_at: now, updated_at: now }
+      ] as Customer[],
+      
+      nextDealId: 4,
+      nextProjectId: 2,
+      nextCustomerId: 4
+    };
   }
-];
+};
 
-let mockCustomers: Customer[] = [
-  { id: '1', name: 'John & Jane Doe', email: 'doe@example.com', phone: '555-0101', status: 'active', customer_type: 'individual', created_at: new Date().toISOString(), updated_at: new Date().toISOString() },
-  { id: '2', name: 'Alice Wong', email: 'alice@example.com', phone: '555-0102', status: 'active', customer_type: 'individual', created_at: new Date().toISOString(), updated_at: new Date().toISOString() },
-  { id: '3', name: 'Bob Smith', email: 'bob@example.com', phone: '555-0103', status: 'active', customer_type: 'individual', created_at: new Date().toISOString(), updated_at: new Date().toISOString() }
-];
+// Initialize the database on module load
+initializeDatabase();
+
+// Accessor functions to get database references
+const getDatabase = () => (globalThis as any).__mockDatabase;
+const getDeals = (): Deal[] => getDatabase().deals;
+const getProjects = (): ProjectWithCustomer[] => getDatabase().projects;
+const getCustomers = (): Customer[] => getDatabase().customers;
 
 // Working mock implementation with in-memory persistence
 class SupabaseService {
   // Projects
   async getProjects(locationFilter?: string): Promise<ProjectWithCustomer[]> {
     try {
+      const projects = getProjects();
       // Filter by location if specified
-      let filteredProjects = [...mockProjects];
+      let filteredProjects = [...projects];
       if (locationFilter && locationFilter !== 'all') {
         // For mock data, we'll assume all projects are in Vancouver for simplicity
         // In real implementation, this would filter by customer location
@@ -247,8 +271,9 @@ class SupabaseService {
   // Deals
   async getDeals(locationFilter?: string): Promise<Deal[]> {
     try {
+      const deals = getDeals();
       // Filter by location if specified
-      let filteredDeals = [...mockDeals];
+      let filteredDeals = [...deals];
       if (locationFilter && locationFilter !== 'all') {
         // For mock data, we'll assume all deals are in Vancouver for simplicity
         // In real implementation, this would filter by customer location
@@ -264,8 +289,9 @@ class SupabaseService {
 
   async createDeal(dealData: Partial<Deal>): Promise<Deal> {
     try {
+      const db = getDatabase();
       const newDeal: Deal = {
-        id: Date.now().toString(),
+        id: db.nextDealId.toString(),
         title: dealData.title || '',
         customer_id: dealData.customer_id || '',
         customer_name: dealData.customer_name || '',
@@ -280,7 +306,8 @@ class SupabaseService {
         updated_at: new Date().toISOString()
       };
       
-      mockDeals.unshift(newDeal);
+      db.deals.unshift(newDeal);
+      db.nextDealId++;
       return newDeal;
     } catch (error) {
       console.error('Error creating deal:', error);
@@ -290,10 +317,11 @@ class SupabaseService {
 
   async updateDeal(dealId: string, updates: Partial<Deal>): Promise<Deal> {
     try {
-      const dealIndex = mockDeals.findIndex(d => d.id === dealId);
+      const deals = getDeals();
+      const dealIndex = deals.findIndex(d => d.id === dealId);
       if (dealIndex === -1) throw new Error('Deal not found');
       
-      const deal = mockDeals[dealIndex]!; // Non-null assertion since we checked the index
+      const deal = deals[dealIndex]!; // Non-null assertion since we checked the index
       // Use Object.assign to safely update only provided fields
       Object.assign(deal, updates, {
         updated_at: new Date().toISOString()
@@ -308,12 +336,71 @@ class SupabaseService {
 
   async deleteDeal(dealId: string): Promise<void> {
     try {
-      const dealIndex = mockDeals.findIndex(d => d.id === dealId);
+      const deals = getDeals();
+      const dealIndex = deals.findIndex(d => d.id === dealId);
       if (dealIndex === -1) throw new Error('Deal not found');
       
-      mockDeals.splice(dealIndex, 1);
+      deals.splice(dealIndex, 1);
     } catch (error) {
       console.error('Error deleting deal:', error);
+      throw error;
+    }
+  }
+
+  async convertDealToProject(dealId: string, projectData?: Partial<Project>): Promise<Project> {
+    try {
+      const deals = getDeals();
+      const deal = deals.find(d => d.id === dealId);
+      if (!deal) throw new Error('Deal not found');
+
+      const db = getDatabase();
+      const customers = getCustomers();
+      const customer = customers.find(c => c.id === deal.customer_id);
+
+      // Create new project from deal
+      const defaultStartDate: string = new Date().toISOString().split('T')[0]!;
+      const defaultManager: string = 'Project Manager';
+      const defaultProjectType: string = 'renovation';
+      
+      const newProject: ProjectWithCustomer = {
+        id: db.nextProjectId.toString(),
+        project_number: `PRJ-${db.nextProjectId.toString().padStart(3, '0')}`,
+        title: deal.title,
+        description: deal.notes || '',
+        customer_id: deal.customer_id,
+        status: 'not-started',
+        percent_complete: 0,
+        contract_amount: deal.value,
+        start_date: defaultStartDate,
+        expected_completion: deal.expected_close_date || '',
+        manager: defaultManager,
+        priority: deal.priority,
+        project_type: defaultProjectType,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        customer: customer || {
+          id: deal.customer_id,
+          name: deal.customer_name,
+          email: '',
+          customer_type: 'individual',
+          status: 'active',
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        }
+      };
+
+      // Add project to database
+      db.projects.unshift(newProject);
+      db.nextProjectId++;
+
+      // Mark deal as converted
+      deal.stage = 'won';
+      deal.converted_to_project_id = newProject.id;
+      deal.updated_at = new Date().toISOString();
+
+      return newProject;
+    } catch (error) {
+      console.error('Error converting deal to project:', error);
       throw error;
     }
   }
@@ -327,10 +414,13 @@ class SupabaseService {
     revenueThisMonth: number;
   }> {
     try {
-      const activeDeals = mockDeals.filter(d => !['closed-won', 'closed-lost'].includes(d.stage));
+      const deals = getDeals();
+      const projects = getProjects();
+      
+      const activeDeals = deals.filter(d => !['won', 'lost'].includes(d.stage));
       const totalPipelineValue = activeDeals.reduce((sum, deal) => sum + deal.value, 0);
-      const activeProjects = mockProjects.filter(p => ['in-progress', 'not-started'].includes(p.status || ''));
-      const completedProjects = mockProjects.filter(p => p.status === 'completed');
+      const activeProjects = projects.filter(p => ['in-progress', 'not-started'].includes(p.status || ''));
+      const completedProjects = projects.filter(p => p.status === 'completed');
       const revenueThisMonth = completedProjects.reduce((sum, p) => sum + (p.contract_amount || 0), 0);
 
       return {
@@ -348,8 +438,9 @@ class SupabaseService {
 
   async createCustomer(customerData: Partial<Customer>): Promise<Customer> {
     try {
+      const db = getDatabase();
       const newCustomer: Customer = {
-        id: Date.now().toString(),
+        id: db.nextCustomerId.toString(),
         name: customerData.name || '',
         email: customerData.email || '',
         phone: customerData.phone || '',
@@ -359,7 +450,8 @@ class SupabaseService {
         updated_at: new Date().toISOString()
       };
       
-      mockCustomers.push(newCustomer);
+      db.customers.push(newCustomer);
+      db.nextCustomerId++;
       return newCustomer;
     } catch (error) {
       console.error('Error creating customer:', error);

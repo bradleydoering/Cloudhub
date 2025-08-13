@@ -685,7 +685,7 @@ export default function DealsPage() {
     try {
       const dealToDelete = deals.find(d => d.id === dealId);
       
-      await executeSupabaseQuery('DELETE FROM deals WHERE id = $1', [dealId]);
+      await supabaseService.deleteDeal(dealId);
       
       setDeals(prev => prev.filter(deal => deal.id !== dealId));
       setShowDealDetailModal(false);
@@ -703,44 +703,24 @@ export default function DealsPage() {
 
   const handleConvertToProject = async (deal: Deal) => {
     try {
-      const projectNumber = `CR-${new Date().getFullYear()}-${String(Math.floor(Math.random() * 999) + 1).padStart(3, '0')}`;
+      // Convert deal to project using the service
+      const project = await supabaseService.convertDealToProject(deal.id, {
+        manager: 'Project Manager',
+        project_type: 'renovation'
+      });
       
-      // Create project from deal
-      const projectResult = await executeSupabaseQuery(`
-        INSERT INTO projects (
-          project_number, title, description, customer_id, status, priority,
-          contract_amount, start_date, expected_completion, manager, project_type
-        ) 
-        SELECT 
-          $1, $2, $3, customer_id, 'not-started', priority,
-          value, CURRENT_DATE, expected_close_date, 'TBD', 'renovation'
-        FROM deals WHERE id = $4
-        RETURNING id
-      `, [projectNumber, deal.title, `Converted from deal: ${deal.title}`, deal.id]);
-      
-      // Update deal with project reference before deleting
-      if (projectResult && projectResult.length > 0) {
-        await executeSupabaseQuery(
-          'UPDATE deals SET converted_to_project_id = $1 WHERE id = $2',
-          [projectResult[0].id, deal.id]
-        );
-      }
-      
-      // Remove deal from deals table
-      await executeSupabaseQuery('DELETE FROM deals WHERE id = $1', [deal.id]);
-      
-      // Update local state
-      setDeals(prev => prev.filter(d => d.id !== deal.id));
+      // Update local state to remove the deal (it's now marked as 'won' in the database)
+      await loadDeals(); // Reload deals to get updated state
       setShowDealDetailModal(false);
       setSelectedDeal(null);
       
       // Notify about successful conversion
       notifySuccess(
         'Deal Converted! 🎉', 
-        `"${deal.title}" has been converted to a project and moved to the Projects section`
+        `"${deal.title}" has been converted to project #${project.project_number}`
       );
       
-      // Also trigger deal stage change to 'won'
+      // Also trigger deal stage change notification
       notifyDealStageChange(deal.id, deal.title, deal.stage, 'won');
     } catch (err) {
       console.error('Error converting deal to project:', err);
@@ -810,93 +790,97 @@ export default function DealsPage() {
 
   return (
     <div className="h-screen flex flex-col max-w-full overflow-hidden">
-      {/* Fixed Header */}
-      <div className="flex-none px-4 lg:px-8 pt-8 pb-4">
-        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-          <div className="min-w-0 flex-1">
-            <h1 className="font-space text-2xl lg:text-3xl font-semibold text-navy truncate">Deals Pipeline</h1>
-            <p className="text-muted-foreground mt-1 text-sm">Manage your renovation project opportunities</p>
-          </div>
-          <div className="flex gap-2 lg:gap-3 flex-shrink-0">
-            <Button variant="outline" size="sm" onClick={() => setShowImportModal(true)}>
-              Import
-            </Button>
-            <Button variant="coral" size="sm" onClick={() => setShowNewDealModal(true)}>
-              + New Deal
-            </Button>
-          </div>
-        </div>
-      </div>
-
-      {/* Fixed Search, Filters, and Stats */}
-      <div className="flex-none px-4 lg:px-8 bg-background border-b border-border pb-4 mb-4">
-        {/* Search and Filters */}
-        <div className="mb-4">
-          <SearchFilters
-            searchTerm={searchTerm}
-            onSearchChange={setSearchTerm}
-            filters={filterOptions}
-            activeFilters={activeFilters}
-            onFilterChange={handleFilterChange}
-            onClearFilters={clearFilters}
-            showAdvanced={showAdvanced}
-            onToggleAdvanced={toggleAdvanced}
-          />
-        </div>
-
-        {/* Bulk Actions */}
-        <div className="mb-4">
-          <BulkActions
-            selectedItems={selectedItems}
-            onClearSelection={clearSelection}
-            actions={bulkActions}
-            onAction={handleBulkAction}
-            itemName="deals"
-          />
-        </div>
-
-        {/* Stats */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 lg:gap-4">
-          <div className="bg-card border border-border p-3 lg:p-4 [clip-path:polygon(0.5rem_0%,100%_0%,100%_calc(100%-0.5rem),calc(100%-0.5rem)_100%,0%_100%,0%_0.5rem)] min-w-0">
-            <div className="text-xl lg:text-2xl font-space font-semibold text-navy truncate">{filteredDeals.length}</div>
-            <div className="text-xs lg:text-sm text-muted-foreground">
-              {searchTerm || Object.keys(activeFilters).length > 0 ? 'Filtered' : 'Active Deals'}
+      {/* Fixed Header - Always visible at top */}
+      <div className="flex-none bg-background border-b border-border sticky top-0 z-10">
+        <div className="px-4 lg:px-6 py-4">
+          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+            <div className="min-w-0 flex-1">
+              <h1 className="font-space text-2xl lg:text-3xl font-semibold text-navy truncate">Deals Pipeline</h1>
+              <p className="text-muted-foreground mt-1 text-sm">Manage your renovation project opportunities</p>
+            </div>
+            <div className="flex gap-2 lg:gap-3 flex-shrink-0">
+              <Button variant="outline" size="sm" onClick={() => setShowImportModal(true)}>
+                Import
+              </Button>
+              <Button variant="coral" size="sm" onClick={() => setShowNewDealModal(true)}>
+                + New Deal
+              </Button>
             </div>
           </div>
-          <div className="bg-card border border-border p-3 lg:p-4 [clip-path:polygon(0.5rem_0%,100%_0%,100%_calc(100%-0.5rem),calc(100%-0.5rem)_100%,0%_100%,0%_0.5rem)] min-w-0">
-            <div className="text-xl lg:text-2xl font-space font-semibold text-coral truncate">${totalValue.toLocaleString()}</div>
-            <div className="text-xs lg:text-sm text-muted-foreground">Pipeline Value</div>
+        </div>
+        
+        {/* Fixed Controls Section - Search, Filters, Stats */}
+        <div className="px-4 lg:px-6 pb-4 bg-muted/20">
+          {/* Search and Filters */}
+          <div className="mb-3">
+            <SearchFilters
+              searchTerm={searchTerm}
+              onSearchChange={setSearchTerm}
+              filters={filterOptions}
+              activeFilters={activeFilters}
+              onFilterChange={handleFilterChange}
+              onClearFilters={clearFilters}
+              showAdvanced={showAdvanced}
+              onToggleAdvanced={toggleAdvanced}
+            />
           </div>
-          <div className="bg-card border border-border p-3 lg:p-4 [clip-path:polygon(0.5rem_0%,100%_0%,100%_calc(100%-0.5rem),calc(100%-0.5rem)_100%,0%_100%,0%_0.5rem)] min-w-0">
-            <div className="text-xl lg:text-2xl font-space font-semibold text-navy truncate">${averageValue.toLocaleString()}</div>
-            <div className="text-xs lg:text-sm text-muted-foreground">Average Size</div>
+
+          {/* Bulk Actions */}
+          <div className="mb-3">
+            <BulkActions
+              selectedItems={selectedItems}
+              onClearSelection={clearSelection}
+              actions={bulkActions}
+              onAction={handleBulkAction}
+              itemName="deals"
+            />
           </div>
-          <div className="bg-card border border-border p-3 lg:p-4 [clip-path:polygon(0.5rem_0%,100%_0%,100%_calc(100%-0.5rem),calc(100%-0.5rem)_100%,0%_100%,0%_0.5rem)] min-w-0">
-            <div className="text-xl lg:text-2xl font-space font-semibold text-navy">78%</div>
-            <div className="text-xs lg:text-sm text-muted-foreground">Close Rate</div>
+
+          {/* Stats */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
+            <div className="bg-card border border-border p-2 lg:p-3 rounded-lg min-w-0">
+              <div className="text-lg lg:text-xl font-space font-semibold text-navy truncate">{filteredDeals.length}</div>
+              <div className="text-xs text-muted-foreground">
+                {searchTerm || Object.keys(activeFilters).length > 0 ? 'Filtered' : 'Active Deals'}
+              </div>
+            </div>
+            <div className="bg-card border border-border p-2 lg:p-3 rounded-lg min-w-0">
+              <div className="text-lg lg:text-xl font-space font-semibold text-coral truncate">${totalValue.toLocaleString()}</div>
+              <div className="text-xs text-muted-foreground">Pipeline Value</div>
+            </div>
+            <div className="bg-card border border-border p-2 lg:p-3 rounded-lg min-w-0">
+              <div className="text-lg lg:text-xl font-space font-semibold text-navy truncate">${averageValue.toLocaleString()}</div>
+              <div className="text-xs text-muted-foreground">Average Size</div>
+            </div>
+            <div className="bg-card border border-border p-2 lg:p-3 rounded-lg min-w-0">
+              <div className="text-lg lg:text-xl font-space font-semibold text-navy">78%</div>
+              <div className="text-xs text-muted-foreground">Close Rate</div>
+            </div>
           </div>
         </div>
       </div>
 
-      {/* Scrollable Kanban Board */}
-      <div className="flex-1 px-4 lg:px-8 pb-4 lg:pb-8 overflow-hidden">
-        <div className="h-full bg-background border border-border p-3 lg:p-6 [clip-path:polygon(0.8rem_0%,100%_0%,100%_calc(100%-0.8rem),calc(100%-0.8rem)_100%,0%_100%,0%_0.8rem)] overflow-hidden">
-          <div className="h-full flex gap-2 lg:gap-4 overflow-x-auto pb-4">
-            {stages.map(stage => (
-              <KanbanColumn
-                key={stage.id}
-                stage={stage}
-                deals={dealsByStage[stage.id] || []}
-                onDealClick={handleDealClick}
-                onAddDeal={handleAddDealToStage}
-                selectedIds={selectedIds}
-                onToggleSelect={toggleItem}
-                onDragStart={handleDragStart}
-                onDragEnd={handleDragEnd}
-                onDrop={handleDrop}
-                draggedDeal={draggedDeal}
-              />
-            ))}
+      {/* Scrollable Kanban Board - Takes remaining space */}
+      <div className="flex-1 overflow-hidden">
+        <div className="h-full px-4 lg:px-6 py-4">
+          <div className="h-full bg-background border border-border rounded-lg p-3 lg:p-4 overflow-hidden">
+            <div className="h-full flex gap-2 lg:gap-4 overflow-x-auto">
+              {stages.map(stage => (
+                <KanbanColumn
+                  key={stage.id}
+                  stage={stage}
+                  deals={dealsByStage[stage.id] || []}
+                  onDealClick={handleDealClick}
+                  onAddDeal={handleAddDealToStage}
+                  selectedIds={selectedIds}
+                  onToggleSelect={toggleItem}
+                  onDragStart={handleDragStart}
+                  onDragEnd={handleDragEnd}
+                  onDrop={handleDrop}
+                  draggedDeal={draggedDeal}
+                />
+              ))}
+            </div>
           </div>
         </div>
       </div>
