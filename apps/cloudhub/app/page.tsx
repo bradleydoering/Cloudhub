@@ -8,6 +8,7 @@ import NewDealForm from '../src/components/NewDealForm';
 import NewProjectForm from '../src/components/NewProjectForm';
 import ReportsView from '../src/components/ReportsView';
 import { useLocation } from '../src/context/LocationContext';
+import { supabaseService } from '../src/lib/supabase';
 
 // Mock data - in real app this would come from API/database
 const mockStats = {
@@ -54,122 +55,49 @@ export default function Home() {
     loadDashboardData();
   }, [selectedLocation]);
 
-  const executeSupabaseQuery = async (sql: string, params: any[] = []): Promise<any[]> => {
-    try {
-      if (typeof (globalThis as any).mcp__supabase__execute_sql === 'function') {
-        let processedSql = sql;
-        if (params && params.length > 0) {
-          params.forEach((param, index) => {
-            const placeholder = `$${index + 1}`;
-            processedSql = processedSql.replace(placeholder, `'${param}'`);
-          });
-        }
-        const result = await (globalThis as any).mcp__supabase__execute_sql({ query: processedSql });
-        return result || [];
-      } else {
-        console.log('MCP function not available, using mock data');
-        return [];
-      }
-    } catch (error) {
-      console.error('Error executing Supabase query:', error);
-      throw error;
-    }
-  };
 
   const loadDashboardData = async () => {
     try {
       setLoading(true);
       
-      let locationFilter = '';
-      let queryParams: any[] = [];
+      // Load dashboard stats
+      const statsData = await supabaseService.getDashboardStats(selectedLocation);
       
-      if (selectedLocation && selectedLocation !== 'all') {
-        locationFilter = 'AND c.location = $1';
-        queryParams = [selectedLocation];
-      }
-
-      // Load recent deals
-      const dealsData = await executeSupabaseQuery(`
-        SELECT 
-          d.id,
-          d.title,
-          c.name as customer,
-          d.value,
-          d.stage,
-          d.priority
-        FROM deals d
-        LEFT JOIN customers c ON d.customer_id = c.id
-        WHERE d.created_at >= NOW() - INTERVAL '30 days' ${locationFilter}
-        ORDER BY d.created_at DESC
-        LIMIT 5
-      `, queryParams);
-
-      // Load active projects
-      const projectsData = await executeSupabaseQuery(`
-        SELECT 
-          p.id,
-          p.title,
-          c.name as customer,
-          p.percent_complete as progress,
-          p.status
-        FROM projects p
-        LEFT JOIN customers c ON p.customer_id = c.id
-        WHERE p.status IN ('in-progress', 'not-started') ${locationFilter}
-        ORDER BY p.created_at DESC
-        LIMIT 5
-      `, queryParams);
-
-      // Load statistics
-      const [dealStats, projectStats] = await Promise.all([
-        executeSupabaseQuery(`
-          SELECT 
-            COUNT(*) as active_deals,
-            COALESCE(SUM(d.value), 0) as total_pipeline_value
-          FROM deals d
-          LEFT JOIN customers c ON d.customer_id = c.id
-          WHERE d.stage NOT IN ('closed-won', 'closed-lost') ${locationFilter}
-        `, queryParams),
-        executeSupabaseQuery(`
-          SELECT 
-            COUNT(CASE WHEN status IN ('in-progress', 'not-started') THEN 1 END) as active_projects,
-            COUNT(CASE WHEN status = 'completed' THEN 1 END) as completed_projects,
-            COALESCE(SUM(CASE WHEN status = 'completed' AND completed_at >= DATE_TRUNC('month', NOW()) THEN contract_amount ELSE 0 END), 0) as revenue_this_month
-          FROM projects p
-          LEFT JOIN customers c ON p.customer_id = c.id
-          WHERE 1=1 ${locationFilter}
-        `, queryParams)
-      ]);
-
-      // Update state with real data if available, otherwise keep mock data
-      if (dealsData.length > 0 || projectsData.length > 0) {
-        setDeals(dealsData.map((deal: any) => ({
-          id: deal.id,
-          title: deal.title,
-          customer: deal.customer || 'Unknown Customer',
-          value: deal.value || 0,
-          stage: deal.stage,
-          priority: deal.priority
-        })));
-        
-        setProjects(projectsData.map((project: any) => ({
+      // Load recent deals (limit to 3 for dashboard)
+      const allDeals = await supabaseService.getDeals(selectedLocation);
+      const recentDeals = allDeals.slice(0, 3).map(deal => ({
+        id: deal.id,
+        title: deal.title,
+        customer: deal.customer_name || 'Unknown Customer',
+        value: deal.value || 0,
+        stage: deal.stage,
+        priority: deal.priority
+      }));
+      
+      // Load recent projects (limit to 3 for dashboard) 
+      const allProjects = await supabaseService.getProjects(selectedLocation);
+      const recentProjects = allProjects
+        .filter(p => ['in-progress', 'not-started'].includes(p.status || ''))
+        .slice(0, 3)
+        .map(project => ({
           id: project.id,
           title: project.title,
-          customer: project.customer || 'Unknown Customer',
-          progress: project.progress || 0,
+          customer: project.customer?.name || 'Unknown Customer',
+          progress: project.percent_complete || 0,
           status: project.status
-        })));
-        
-        if (dealStats.length > 0 && projectStats.length > 0) {
-          setStats({
-            activeDeals: parseInt(dealStats[0].active_deals) || 0,
-            totalPipelineValue: parseFloat(dealStats[0].total_pipeline_value) || 0,
-            activeProjects: parseInt(projectStats[0].active_projects) || 0,
-            projectsCompleted: parseInt(projectStats[0].completed_projects) || 0,
-            customerSatisfaction: 98, // This would come from customer surveys
-            revenueThisMonth: parseFloat(projectStats[0].revenue_this_month) || 0,
-          });
-        }
-      }
+        }));
+      
+      // Update state with data from supabaseService
+      setDeals(recentDeals);
+      setProjects(recentProjects);
+      setStats({
+        activeDeals: statsData.activeDeals,
+        totalPipelineValue: statsData.totalPipelineValue,
+        activeProjects: statsData.activeProjects,
+        projectsCompleted: statsData.completedProjects,
+        customerSatisfaction: 98, // This would come from customer surveys
+        revenueThisMonth: statsData.revenueThisMonth,
+      });
     } catch (error) {
       console.error('Error loading dashboard data:', error);
       // Keep mock data on error
@@ -183,34 +111,30 @@ export default function Home() {
       // Create customer first if needed
       let customerId = dealData.customer_id;
       if (!customerId && dealData.customer_name) {
-        const customerResult = await executeSupabaseQuery(`
-          INSERT INTO customers (name, email, phone, status, customer_type)
-          VALUES ($1, $2, $3, 'prospect', 'individual')
-          RETURNING id
-        `, [dealData.customer_name, dealData.email || '', dealData.phone || '']);
-        
-        if (customerResult.length > 0) {
-          customerId = customerResult[0].id;
-        }
+        const newCustomer = await supabaseService.createCustomer({
+          name: dealData.customer_name,
+          email: dealData.customer_email || '',
+          phone: dealData.customer_phone || '',
+          status: 'prospect',
+          customer_type: 'individual',
+          location: selectedLocation !== 'all' ? selectedLocation : 'Vancouver'
+        });
+        customerId = newCustomer.id;
       }
 
       // Create the deal
-      await executeSupabaseQuery(`
-        INSERT INTO deals (
-          title, description, customer_id, value, stage, priority, 
-          expected_close_date, source, notes
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-      `, [
-        dealData.title,
-        dealData.description || '',
-        customerId,
-        dealData.value,
-        dealData.stage || 'new',
-        dealData.priority || 'medium',
-        dealData.expectedClose,
-        dealData.source || 'website',
-        dealData.notes || ''
-      ]);
+      await supabaseService.createDeal({
+        title: dealData.title,
+        description: dealData.description || '',
+        customer_id: customerId,
+        customer_name: dealData.customer_name,
+        value: dealData.value,
+        stage: dealData.stage || 'new',
+        priority: dealData.priority || 'medium',
+        expected_close_date: dealData.expectedClose,
+        source: dealData.source || 'website',
+        notes: dealData.notes || ''
+      });
 
       // Reload dashboard data to reflect the new deal
       await loadDashboardData();
@@ -219,33 +143,54 @@ export default function Home() {
       alert('Deal created successfully!');
     } catch (error) {
       console.error('Error creating deal:', error);
-      // Fallback to mock behavior
-      const newDeal = {
-        ...dealData,
-        id: `deal-${Date.now()}`,
-        lastActivity: 'just now'
-      };
-      setDeals(prev => [newDeal, ...prev.slice(0, 2)]); // Keep only 3 deals
-      setStats(prev => ({ ...prev, activeDeals: prev.activeDeals + 1 }));
-      setShowNewDealModal(false);
-      alert('Deal created successfully!');
+      alert('Failed to create deal. Please try again.');
     }
   };
 
   const handleNewProject = async (projectData: any) => {
-    // In a real app, this would save to the database
-    const newProject = {
-      ...projectData,
-      id: `project-${Date.now()}`,
-      progress: 0,
-      status: 'not-started'
-    };
-    setProjects(prev => [newProject, ...prev.slice(0, 2)]); // Keep only 3 projects
-    setStats(prev => ({ ...prev, activeProjects: prev.activeProjects + 1 }));
-    setShowNewProjectModal(false);
-    
-    // Show success message
-    alert('Project created successfully!');
+    try {
+      // Create customer first if needed
+      let customerId = projectData.customer_id;
+      if (!customerId && projectData.customer_name) {
+        const newCustomer = await supabaseService.createCustomer({
+          name: projectData.customer_name,
+          email: projectData.customer_email || '',
+          phone: projectData.customer_phone || '',
+          status: 'active',
+          customer_type: 'individual',
+          location: selectedLocation !== 'all' ? selectedLocation : 'Vancouver'
+        });
+        customerId = newCustomer.id;
+      }
+
+      // Create the project
+      await supabaseService.createProject({
+        title: projectData.title,
+        description: projectData.description || '',
+        customer_id: customerId,
+        status: 'not-started',
+        priority: projectData.priority || 'medium',
+        contract_amount: projectData.contract_amount,
+        start_date: projectData.start_date,
+        expected_completion: projectData.expected_completion,
+        manager: projectData.manager,
+        project_type: projectData.project_type,
+        address_line1: projectData.address_line1,
+        city: projectData.city,
+        province: projectData.province,
+        postal_code: projectData.postal_code,
+        country: projectData.country
+      });
+
+      // Reload dashboard data to reflect the new project
+      await loadDashboardData();
+      
+      setShowNewProjectModal(false);
+      alert('Project created successfully!');
+    } catch (error) {
+      console.error('Error creating project:', error);
+      alert('Failed to create project. Please try again.');
+    }
   };
 
   const handleDealClick = (dealId: string) => {

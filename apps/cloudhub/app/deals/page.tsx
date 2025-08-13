@@ -11,6 +11,7 @@ import DealDetailView from '../../src/components/DealDetailView';
 import ImportDealsForm from '../../src/components/ImportDealsForm';
 import NewDealForm from '../../src/components/NewDealForm';
 import { useLocation } from '../../src/context/LocationContext';
+import { supabaseService } from '../../src/lib/supabase';
 
 type Deal = {
   id: string;
@@ -195,8 +196,8 @@ function KanbanColumn({
   };
 
   return (
-    <div className="flex-1 min-w-80">
-      <div className="bg-muted p-3 mb-4 [clip-path:polygon(0.3rem_0%,100%_0%,100%_calc(100%-0.3rem),calc(100%-0.3rem)_100%,0%_100%,0%_0.3rem)]">
+    <div className="flex-1 min-w-64 lg:min-w-80 max-w-sm">
+      <div className="bg-muted p-2 lg:p-3 mb-3 lg:mb-4 [clip-path:polygon(0.3rem_0%,100%_0%,100%_calc(100%-0.3rem),calc(100%-0.3rem)_100%,0%_100%,0%_0.3rem)]">
         <div className="flex items-center justify-between">
           <h3 className="font-space font-medium text-foreground">{stage.name}</h3>
           <div className="flex items-center space-x-2">
@@ -396,25 +397,9 @@ export default function DealsPage() {
   const loadDeals = async () => {
     try {
       setLoading(true);
+      setError(null);
       
-      let locationFilter = '';
-      let queryParams: any[] = [];
-      
-      if (selectedLocation && selectedLocation !== 'all') {
-        locationFilter = 'WHERE c.location = $1';
-        queryParams = [selectedLocation];
-      }
-      
-      const dealsData = await executeSupabaseQuery(`
-        SELECT 
-          d.*,
-          c.name as customer_name,
-          c.location as customer_location
-        FROM deals d
-        LEFT JOIN customers c ON d.customer_id = c.id
-        ${locationFilter}
-        ORDER BY d.created_at DESC
-      `, queryParams);
+      const dealsData = await supabaseService.getDeals(selectedLocation);
       
       const mappedDeals: Deal[] = dealsData.map((row: any) => ({
         id: row.id,
@@ -425,7 +410,7 @@ export default function DealsPage() {
         priority: row.priority,
         expectedClose: row.expected_close_date,
         source: row.source || 'unknown',
-        lastActivity: row.last_activity || 'No recent activity'
+        lastActivity: 'Recent activity'
       }));
 
       setDeals(mappedDeals);
@@ -607,38 +592,29 @@ export default function DealsPage() {
       // Create customer first if needed
       let customerId = dealData.customer_id;
       if (!customerId && dealData.customer_name) {
-        const customerResult = await executeSupabaseQuery(`
-          INSERT INTO customers (name, email, phone, status, customer_type, location)
-          VALUES ($1, $2, $3, 'prospect', 'individual', $4)
-          RETURNING id
-        `, [
-          dealData.customer_name, 
-          dealData.customer_email || '', 
-          dealData.customer_phone || '', 
-          selectedLocation !== 'all' ? selectedLocation : 'Vancouver'
-        ]);
-        
-        if (customerResult.length > 0) {
-          customerId = customerResult[0].id;
-        }
+        const newCustomer = await supabaseService.createCustomer({
+          name: dealData.customer_name,
+          email: dealData.customer_email || '',
+          phone: dealData.customer_phone || '',
+          status: 'prospect',
+          customer_type: 'individual',
+          location: selectedLocation !== 'all' ? selectedLocation : 'Vancouver'
+        });
+        customerId = newCustomer.id;
       }
 
-      await executeSupabaseQuery(`
-        INSERT INTO deals (
-          title, description, customer_id, value, stage, priority, 
-          expected_close_date, source, notes
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-      `, [
-        dealData.title,
-        dealData.description || '',
-        customerId,
-        dealData.value,
-        newDealStage,
-        dealData.priority,
-        dealData.expectedClose,
-        dealData.source,
-        dealData.notes || ''
-      ]);
+      await supabaseService.createDeal({
+        title: dealData.title,
+        description: dealData.description || '',
+        customer_id: customerId,
+        customer_name: dealData.customer_name,
+        value: dealData.value,
+        stage: newDealStage,
+        priority: dealData.priority,
+        expected_close_date: dealData.expectedClose,
+        source: dealData.source,
+        notes: dealData.notes || ''
+      });
 
       // Reload deals
       await loadDeals();
@@ -672,22 +648,15 @@ export default function DealsPage() {
       const previousDeal = deals.find(d => d.id === updatedDeal.id);
       const stageChanged = previousDeal && previousDeal.stage !== updatedDeal.stage;
       
-      await executeSupabaseQuery(`
-        UPDATE deals 
-        SET title = $2, description = $3, value = $4, stage = $5, priority = $6,
-            expected_close_date = $7, source = $8, notes = $9, updated_at = NOW()
-        WHERE id = $1
-      `, [
-        updatedDeal.id,
-        updatedDeal.title,
-        updatedDeal.description || '',
-        updatedDeal.value,
-        updatedDeal.stage,
-        updatedDeal.priority,
-        updatedDeal.expectedClose,
-        updatedDeal.source,
-        updatedDeal.notes || ''
-      ]);
+      await supabaseService.updateDeal(updatedDeal.id, {
+        title: updatedDeal.title,
+        value: updatedDeal.value,
+        stage: updatedDeal.stage,
+        priority: updatedDeal.priority,
+        expected_close_date: updatedDeal.expectedClose,
+        source: updatedDeal.source,
+        notes: updatedDeal.notes || ''
+      });
 
       // Update local state
       setDeals(prev => prev.map(deal => 
@@ -841,19 +810,19 @@ export default function DealsPage() {
   }
 
   return (
-    <div className="h-screen flex flex-col">
+    <div className="h-screen flex flex-col max-w-full overflow-hidden">
       {/* Fixed Header */}
-      <div className="flex-none px-8 pt-8 pb-4">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h1 className="font-space text-3xl font-semibold text-navy">Deals Pipeline</h1>
-            <p className="text-muted-foreground mt-1">Manage your renovation project opportunities</p>
+      <div className="flex-none px-4 lg:px-8 pt-8 pb-4">
+        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+          <div className="min-w-0 flex-1">
+            <h1 className="font-space text-2xl lg:text-3xl font-semibold text-navy truncate">Deals Pipeline</h1>
+            <p className="text-muted-foreground mt-1 text-sm">Manage your renovation project opportunities</p>
           </div>
-          <div className="flex gap-3 mt-4 sm:mt-0">
-            <Button variant="outline" onClick={() => setShowImportModal(true)}>
-              Import Deals
+          <div className="flex gap-2 lg:gap-3 flex-shrink-0">
+            <Button variant="outline" size="sm" onClick={() => setShowImportModal(true)}>
+              Import
             </Button>
-            <Button variant="coral" onClick={() => setShowNewDealModal(true)}>
+            <Button variant="coral" size="sm" onClick={() => setShowNewDealModal(true)}>
               + New Deal
             </Button>
           </div>
@@ -861,7 +830,7 @@ export default function DealsPage() {
       </div>
 
       {/* Fixed Search, Filters, and Stats */}
-      <div className="flex-none px-8 bg-background border-b border-border pb-6 mb-6">
+      <div className="flex-none px-4 lg:px-8 bg-background border-b border-border pb-4 mb-4">
         {/* Search and Filters */}
         <div className="mb-4">
           <SearchFilters
@@ -888,32 +857,32 @@ export default function DealsPage() {
         </div>
 
         {/* Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <div className="bg-card border border-border p-4 [clip-path:polygon(0.5rem_0%,100%_0%,100%_calc(100%-0.5rem),calc(100%-0.5rem)_100%,0%_100%,0%_0.5rem)]">
-            <div className="text-2xl font-space font-semibold text-navy">{filteredDeals.length}</div>
-            <div className="text-sm text-muted-foreground">
-              {searchTerm || Object.keys(activeFilters).length > 0 ? 'Filtered Deals' : 'Active Deals'}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 lg:gap-4">
+          <div className="bg-card border border-border p-3 lg:p-4 [clip-path:polygon(0.5rem_0%,100%_0%,100%_calc(100%-0.5rem),calc(100%-0.5rem)_100%,0%_100%,0%_0.5rem)] min-w-0">
+            <div className="text-xl lg:text-2xl font-space font-semibold text-navy truncate">{filteredDeals.length}</div>
+            <div className="text-xs lg:text-sm text-muted-foreground">
+              {searchTerm || Object.keys(activeFilters).length > 0 ? 'Filtered' : 'Active Deals'}
             </div>
           </div>
-          <div className="bg-card border border-border p-4 [clip-path:polygon(0.5rem_0%,100%_0%,100%_calc(100%-0.5rem),calc(100%-0.5rem)_100%,0%_100%,0%_0.5rem)]">
-            <div className="text-2xl font-space font-semibold text-coral">${totalValue.toLocaleString()}</div>
-            <div className="text-sm text-muted-foreground">Total Pipeline Value</div>
+          <div className="bg-card border border-border p-3 lg:p-4 [clip-path:polygon(0.5rem_0%,100%_0%,100%_calc(100%-0.5rem),calc(100%-0.5rem)_100%,0%_100%,0%_0.5rem)] min-w-0">
+            <div className="text-xl lg:text-2xl font-space font-semibold text-coral truncate">${totalValue.toLocaleString()}</div>
+            <div className="text-xs lg:text-sm text-muted-foreground">Pipeline Value</div>
           </div>
-          <div className="bg-card border border-border p-4 [clip-path:polygon(0.5rem_0%,100%_0%,100%_calc(100%-0.5rem),calc(100%-0.5rem)_100%,0%_100%,0%_0.5rem)]">
-            <div className="text-2xl font-space font-semibold text-navy">${averageValue.toLocaleString()}</div>
-            <div className="text-sm text-muted-foreground">Average Deal Size</div>
+          <div className="bg-card border border-border p-3 lg:p-4 [clip-path:polygon(0.5rem_0%,100%_0%,100%_calc(100%-0.5rem),calc(100%-0.5rem)_100%,0%_100%,0%_0.5rem)] min-w-0">
+            <div className="text-xl lg:text-2xl font-space font-semibold text-navy truncate">${averageValue.toLocaleString()}</div>
+            <div className="text-xs lg:text-sm text-muted-foreground">Average Size</div>
           </div>
-          <div className="bg-card border border-border p-4 [clip-path:polygon(0.5rem_0%,100%_0%,100%_calc(100%-0.5rem),calc(100%-0.5rem)_100%,0%_100%,0%_0.5rem)]">
-            <div className="text-2xl font-space font-semibold text-navy">78%</div>
-            <div className="text-sm text-muted-foreground">Close Rate</div>
+          <div className="bg-card border border-border p-3 lg:p-4 [clip-path:polygon(0.5rem_0%,100%_0%,100%_calc(100%-0.5rem),calc(100%-0.5rem)_100%,0%_100%,0%_0.5rem)] min-w-0">
+            <div className="text-xl lg:text-2xl font-space font-semibold text-navy">78%</div>
+            <div className="text-xs lg:text-sm text-muted-foreground">Close Rate</div>
           </div>
         </div>
       </div>
 
       {/* Scrollable Kanban Board */}
-      <div className="flex-1 px-8 pb-8 overflow-hidden">
-        <div className="h-full bg-background border border-border p-6 [clip-path:polygon(0.8rem_0%,100%_0%,100%_calc(100%-0.8rem),calc(100%-0.8rem)_100%,0%_100%,0%_0.8rem)]">
-          <div className="h-full flex gap-4 overflow-x-auto pb-4">
+      <div className="flex-1 px-4 lg:px-8 pb-4 lg:pb-8 overflow-hidden">
+        <div className="h-full bg-background border border-border p-3 lg:p-6 [clip-path:polygon(0.8rem_0%,100%_0%,100%_calc(100%-0.8rem),calc(100%-0.8rem)_100%,0%_100%,0%_0.8rem)] overflow-hidden">
+          <div className="h-full flex gap-2 lg:gap-4 overflow-x-auto pb-4">
             {stages.map(stage => (
               <KanbanColumn
                 key={stage.id}

@@ -13,32 +13,87 @@ import {
   ProjectDetails
 } from '../types/database';
 
-// Mock implementation for now - will be replaced with actual Supabase client
+// In-memory mock data that persists during session
+let mockDeals: Deal[] = [
+  {
+    id: '1',
+    title: 'Kitchen Renovation - Doe Residence',
+    customer_id: '1',
+    customer_name: 'John & Jane Doe',
+    value: 35000,
+    stage: 'new',
+    priority: 'high',
+    expected_close_date: '2025-09-15',
+    source: 'website',
+    notes: 'Initial consultation completed',
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString()
+  },
+  {
+    id: '2',
+    title: 'Master Suite Addition',
+    customer_id: '2', 
+    customer_name: 'Alice Wong',
+    value: 75000,
+    stage: 'qualified',
+    priority: 'urgent',
+    expected_close_date: '2025-08-20',
+    source: 'referral',
+    notes: 'High priority client',
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString()
+  },
+  {
+    id: '3',
+    title: 'Bathroom Remodel - Smith Home',
+    customer_id: '3',
+    customer_name: 'Bob Smith', 
+    value: 18000,
+    stage: 'estimating',
+    priority: 'medium',
+    expected_close_date: '2025-10-01',
+    source: 'design-library',
+    notes: 'Waiting for material selection',
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString()
+  }
+];
+
+let mockProjects: ProjectWithCustomer[] = [
+  {
+    id: '1',
+    title: 'Kitchen Renovation - Doe Residence',
+    customer_id: '1',
+    status: 'in-progress',
+    percent_complete: 45,
+    contract_amount: 35000,
+    start_date: '2024-12-01',
+    expected_completion: '2025-03-15',
+    created_at: new Date().toISOString(),
+    customer: { id: '1', name: 'John & Jane Doe', email: 'doe@example.com', phone: '555-0101' }
+  }
+];
+
+let mockCustomers: Customer[] = [
+  { id: '1', name: 'John & Jane Doe', email: 'doe@example.com', phone: '555-0101', status: 'active', created_at: new Date().toISOString() },
+  { id: '2', name: 'Alice Wong', email: 'alice@example.com', phone: '555-0102', status: 'active', created_at: new Date().toISOString() },
+  { id: '3', name: 'Bob Smith', email: 'bob@example.com', phone: '555-0103', status: 'active', created_at: new Date().toISOString() }
+];
+
+// Working mock implementation with in-memory persistence
 class SupabaseService {
   // Projects
-  async getProjects(): Promise<ProjectWithCustomer[]> {
+  async getProjects(locationFilter?: string): Promise<ProjectWithCustomer[]> {
     try {
-      // This would normally be a Supabase query
-      const projects = await this.executeQuery(`
-        SELECT 
-          p.*,
-          c.name as customer_name,
-          c.email as customer_email,
-          c.phone as customer_phone
-        FROM projects p
-        JOIN customers c ON p.customer_id = c.id
-        ORDER BY p.created_at DESC
-      `);
-
-      return projects.map((p: any) => ({
-        ...p,
-        customer: {
-          id: p.customer_id,
-          name: p.customer_name,
-          email: p.customer_email,
-          phone: p.customer_phone
-        }
-      }));
+      // Filter by location if specified
+      let filteredProjects = [...mockProjects];
+      if (locationFilter && locationFilter !== 'all') {
+        // For mock data, we'll assume all projects are in Vancouver for simplicity
+        // In real implementation, this would filter by customer location
+      }
+      return filteredProjects.sort((a, b) => 
+        new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      );
     } catch (error) {
       console.error('Error fetching projects:', error);
       throw error;
@@ -174,12 +229,17 @@ class SupabaseService {
   }
 
   // Deals
-  async getDeals(): Promise<Deal[]> {
+  async getDeals(locationFilter?: string): Promise<Deal[]> {
     try {
-      return await this.executeQuery(`
-        SELECT * FROM deals 
-        ORDER BY created_at DESC
-      `);
+      // Filter by location if specified
+      let filteredDeals = [...mockDeals];
+      if (locationFilter && locationFilter !== 'all') {
+        // For mock data, we'll assume all deals are in Vancouver for simplicity
+        // In real implementation, this would filter by customer location
+      }
+      return filteredDeals.sort((a, b) => 
+        new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      );
     } catch (error) {
       console.error('Error fetching deals:', error);
       throw error;
@@ -188,31 +248,105 @@ class SupabaseService {
 
   async createDeal(dealData: Partial<Deal>): Promise<Deal> {
     try {
-      const result = await this.executeQuery(`
-        INSERT INTO deals (
-          title, description, customer_id, customer_name, value,
-          stage, priority, probability, expected_close_date, source, assigned_to, notes
-        ) VALUES (
-          $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12
-        ) RETURNING *
-      `, [
-        dealData.title,
-        dealData.description,
-        dealData.customer_id,
-        dealData.customer_name,
-        dealData.value,
-        dealData.stage || 'new',
-        dealData.priority || 'medium',
-        dealData.probability || 50,
-        dealData.expected_close_date,
-        dealData.source,
-        dealData.assigned_to,
-        dealData.notes
-      ]);
-
-      return result[0];
+      const newDeal: Deal = {
+        id: Date.now().toString(),
+        title: dealData.title || '',
+        customer_id: dealData.customer_id || null,
+        customer_name: dealData.customer_name || '',
+        value: dealData.value || 0,
+        stage: dealData.stage || 'new',
+        priority: dealData.priority || 'medium',
+        expected_close_date: dealData.expected_close_date || '',
+        source: dealData.source || 'website',
+        notes: dealData.notes || '',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      };
+      
+      mockDeals.unshift(newDeal);
+      return newDeal;
     } catch (error) {
       console.error('Error creating deal:', error);
+      throw error;
+    }
+  }
+
+  async updateDeal(dealId: string, updates: Partial<Deal>): Promise<Deal> {
+    try {
+      const dealIndex = mockDeals.findIndex(d => d.id === dealId);
+      if (dealIndex === -1) throw new Error('Deal not found');
+      
+      mockDeals[dealIndex] = {
+        ...mockDeals[dealIndex],
+        ...updates,
+        updated_at: new Date().toISOString()
+      };
+      
+      return mockDeals[dealIndex];
+    } catch (error) {
+      console.error('Error updating deal:', error);
+      throw error;
+    }
+  }
+
+  async deleteDeal(dealId: string): Promise<void> {
+    try {
+      const dealIndex = mockDeals.findIndex(d => d.id === dealId);
+      if (dealIndex === -1) throw new Error('Deal not found');
+      
+      mockDeals.splice(dealIndex, 1);
+    } catch (error) {
+      console.error('Error deleting deal:', error);
+      throw error;
+    }
+  }
+
+  // Dashboard Statistics
+  async getDashboardStats(locationFilter?: string): Promise<{
+    activeDeals: number;
+    totalPipelineValue: number;
+    activeProjects: number; 
+    completedProjects: number;
+    revenueThisMonth: number;
+  }> {
+    try {
+      const activeDeals = mockDeals.filter(d => !['closed-won', 'closed-lost'].includes(d.stage));
+      const totalPipelineValue = activeDeals.reduce((sum, deal) => sum + deal.value, 0);
+      const activeProjects = mockProjects.filter(p => ['in-progress', 'not-started'].includes(p.status || ''));
+      const completedProjects = mockProjects.filter(p => p.status === 'completed');
+      const revenueThisMonth = completedProjects.reduce((sum, p) => sum + (p.contract_amount || 0), 0);
+
+      return {
+        activeDeals: activeDeals.length,
+        totalPipelineValue,
+        activeProjects: activeProjects.length,
+        completedProjects: completedProjects.length,
+        revenueThisMonth
+      };
+    } catch (error) {
+      console.error('Error fetching dashboard stats:', error);
+      throw error;
+    }
+  }
+
+  async createCustomer(customerData: Partial<Customer>): Promise<Customer> {
+    try {
+      const newCustomer: Customer = {
+        id: Date.now().toString(),
+        name: customerData.name || '',
+        email: customerData.email || '',
+        phone: customerData.phone || '',
+        status: customerData.status || 'prospect',
+        customer_type: customerData.customer_type || 'individual',
+        location: customerData.location || 'Vancouver',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      };
+      
+      mockCustomers.push(newCustomer);
+      return newCustomer;
+    } catch (error) {
+      console.error('Error creating customer:', error);
       throw error;
     }
   }
