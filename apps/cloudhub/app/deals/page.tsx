@@ -604,6 +604,25 @@ export default function DealsPage() {
 
   const handleNewDeal = async (dealData: any) => {
     try {
+      // Create customer first if needed
+      let customerId = dealData.customer_id;
+      if (!customerId && dealData.customer_name) {
+        const customerResult = await executeSupabaseQuery(`
+          INSERT INTO customers (name, email, phone, status, customer_type, location)
+          VALUES ($1, $2, $3, 'prospect', 'individual', $4)
+          RETURNING id
+        `, [
+          dealData.customer_name, 
+          dealData.customer_email || '', 
+          dealData.customer_phone || '', 
+          selectedLocation !== 'all' ? selectedLocation : 'Vancouver'
+        ]);
+        
+        if (customerResult.length > 0) {
+          customerId = customerResult[0].id;
+        }
+      }
+
       await executeSupabaseQuery(`
         INSERT INTO deals (
           title, description, customer_id, value, stage, priority, 
@@ -611,14 +630,14 @@ export default function DealsPage() {
         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
       `, [
         dealData.title,
-        dealData.description,
-        dealData.customer_id,
+        dealData.description || '',
+        customerId,
         dealData.value,
         newDealStage,
         dealData.priority,
         dealData.expectedClose,
         dealData.source,
-        dealData.notes
+        dealData.notes || ''
       ]);
 
       // Reload deals
@@ -822,25 +841,27 @@ export default function DealsPage() {
   }
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="font-space text-3xl font-semibold text-navy">Deals Pipeline</h1>
-          <p className="text-muted-foreground mt-1">Manage your renovation project opportunities</p>
-        </div>
-        <div className="flex gap-3 mt-4 sm:mt-0">
-          <Button variant="outline" onClick={() => setShowImportModal(true)}>
-            Import Deals
-          </Button>
-          <Button variant="coral" onClick={() => setShowNewDealModal(true)}>
-            + New Deal
-          </Button>
+    <div className="h-screen flex flex-col">
+      {/* Fixed Header */}
+      <div className="flex-none px-8 pt-8 pb-4">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h1 className="font-space text-3xl font-semibold text-navy">Deals Pipeline</h1>
+            <p className="text-muted-foreground mt-1">Manage your renovation project opportunities</p>
+          </div>
+          <div className="flex gap-3 mt-4 sm:mt-0">
+            <Button variant="outline" onClick={() => setShowImportModal(true)}>
+              Import Deals
+            </Button>
+            <Button variant="coral" onClick={() => setShowNewDealModal(true)}>
+              + New Deal
+            </Button>
+          </div>
         </div>
       </div>
 
-      {/* Sticky Search, Filters, and Stats */}
-      <div className="sticky top-0 z-10 bg-background/95 backdrop-blur-sm border-b border-border pb-6 mb-6">
+      {/* Fixed Search, Filters, and Stats */}
+      <div className="flex-none px-8 bg-background border-b border-border pb-6 mb-6">
         {/* Search and Filters */}
         <div className="mb-4">
           <SearchFilters
@@ -889,24 +910,26 @@ export default function DealsPage() {
         </div>
       </div>
 
-      {/* Kanban Board */}
-      <div className="bg-background border border-border p-6 [clip-path:polygon(0.8rem_0%,100%_0%,100%_calc(100%-0.8rem),calc(100%-0.8rem)_100%,0%_100%,0%_0.8rem)]">
-        <div className="flex gap-4 overflow-x-auto pb-4">
-          {stages.map(stage => (
-            <KanbanColumn
-              key={stage.id}
-              stage={stage}
-              deals={dealsByStage[stage.id] || []}
-              onDealClick={handleDealClick}
-              onAddDeal={handleAddDealToStage}
-              selectedIds={selectedIds}
-              onToggleSelect={toggleItem}
-              onDragStart={handleDragStart}
-              onDragEnd={handleDragEnd}
-              onDrop={handleDrop}
-              draggedDeal={draggedDeal}
-            />
-          ))}
+      {/* Scrollable Kanban Board */}
+      <div className="flex-1 px-8 pb-8 overflow-hidden">
+        <div className="h-full bg-background border border-border p-6 [clip-path:polygon(0.8rem_0%,100%_0%,100%_calc(100%-0.8rem),calc(100%-0.8rem)_100%,0%_100%,0%_0.8rem)]">
+          <div className="h-full flex gap-4 overflow-x-auto pb-4">
+            {stages.map(stage => (
+              <KanbanColumn
+                key={stage.id}
+                stage={stage}
+                deals={dealsByStage[stage.id] || []}
+                onDealClick={handleDealClick}
+                onAddDeal={handleAddDealToStage}
+                selectedIds={selectedIds}
+                onToggleSelect={toggleItem}
+                onDragStart={handleDragStart}
+                onDragEnd={handleDragEnd}
+                onDrop={handleDrop}
+                draggedDeal={draggedDeal}
+              />
+            ))}
+          </div>
         </div>
       </div>
 

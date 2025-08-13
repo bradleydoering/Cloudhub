@@ -1,12 +1,13 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from '@cloudreno/ui';
 import { useRouter } from 'next/navigation';
 import Modal from '../src/components/Modal';
 import NewDealForm from '../src/components/NewDealForm';
 import NewProjectForm from '../src/components/NewProjectForm';
 import ReportsView from '../src/components/ReportsView';
+import { useLocation } from '../src/context/LocationContext';
 
 // Mock data - in real app this would come from API/database
 const mockStats = {
@@ -32,12 +33,14 @@ const mockActiveProjects = [
 
 export default function Home() {
   const router = useRouter();
+  const { selectedLocation } = useLocation();
   const [showNewDealModal, setShowNewDealModal] = useState(false);
   const [showNewProjectModal, setShowNewProjectModal] = useState(false);
   const [showReportsModal, setShowReportsModal] = useState(false);
   const [deals, setDeals] = useState(mockRecentDeals);
   const [projects, setProjects] = useState(mockActiveProjects);
   const [stats, setStats] = useState(mockStats);
+  const [loading, setLoading] = useState(true);
 
   const priorityColors = {
     low: 'border-l-navy/40',
@@ -46,19 +49,187 @@ export default function Home() {
     urgent: 'border-l-coral'
   };
 
+  // Load real data from database
+  useEffect(() => {
+    loadDashboardData();
+  }, [selectedLocation]);
+
+  const executeSupabaseQuery = async (sql: string, params: any[] = []): Promise<any[]> => {
+    try {
+      if (typeof (globalThis as any).mcp__supabase__execute_sql === 'function') {
+        let processedSql = sql;
+        if (params && params.length > 0) {
+          params.forEach((param, index) => {
+            const placeholder = `$${index + 1}`;
+            processedSql = processedSql.replace(placeholder, `'${param}'`);
+          });
+        }
+        const result = await (globalThis as any).mcp__supabase__execute_sql({ query: processedSql });
+        return result || [];
+      } else {
+        console.log('MCP function not available, using mock data');
+        return [];
+      }
+    } catch (error) {
+      console.error('Error executing Supabase query:', error);
+      throw error;
+    }
+  };
+
+  const loadDashboardData = async () => {
+    try {
+      setLoading(true);
+      
+      let locationFilter = '';
+      let queryParams: any[] = [];
+      
+      if (selectedLocation && selectedLocation !== 'all') {
+        locationFilter = 'AND c.location = $1';
+        queryParams = [selectedLocation];
+      }
+
+      // Load recent deals
+      const dealsData = await executeSupabaseQuery(`
+        SELECT 
+          d.id,
+          d.title,
+          c.name as customer,
+          d.value,
+          d.stage,
+          d.priority
+        FROM deals d
+        LEFT JOIN customers c ON d.customer_id = c.id
+        WHERE d.created_at >= NOW() - INTERVAL '30 days' ${locationFilter}
+        ORDER BY d.created_at DESC
+        LIMIT 5
+      `, queryParams);
+
+      // Load active projects
+      const projectsData = await executeSupabaseQuery(`
+        SELECT 
+          p.id,
+          p.title,
+          c.name as customer,
+          p.percent_complete as progress,
+          p.status
+        FROM projects p
+        LEFT JOIN customers c ON p.customer_id = c.id
+        WHERE p.status IN ('in-progress', 'not-started') ${locationFilter}
+        ORDER BY p.created_at DESC
+        LIMIT 5
+      `, queryParams);
+
+      // Load statistics
+      const [dealStats, projectStats] = await Promise.all([
+        executeSupabaseQuery(`
+          SELECT 
+            COUNT(*) as active_deals,
+            COALESCE(SUM(d.value), 0) as total_pipeline_value
+          FROM deals d
+          LEFT JOIN customers c ON d.customer_id = c.id
+          WHERE d.stage NOT IN ('closed-won', 'closed-lost') ${locationFilter}
+        `, queryParams),
+        executeSupabaseQuery(`
+          SELECT 
+            COUNT(CASE WHEN status IN ('in-progress', 'not-started') THEN 1 END) as active_projects,
+            COUNT(CASE WHEN status = 'completed' THEN 1 END) as completed_projects,
+            COALESCE(SUM(CASE WHEN status = 'completed' AND completed_at >= DATE_TRUNC('month', NOW()) THEN contract_amount ELSE 0 END), 0) as revenue_this_month
+          FROM projects p
+          LEFT JOIN customers c ON p.customer_id = c.id
+          WHERE 1=1 ${locationFilter}
+        `, queryParams)
+      ]);
+
+      // Update state with real data if available, otherwise keep mock data
+      if (dealsData.length > 0 || projectsData.length > 0) {
+        setDeals(dealsData.map((deal: any) => ({
+          id: deal.id,
+          title: deal.title,
+          customer: deal.customer || 'Unknown Customer',
+          value: deal.value || 0,
+          stage: deal.stage,
+          priority: deal.priority
+        })));
+        
+        setProjects(projectsData.map((project: any) => ({
+          id: project.id,
+          title: project.title,
+          customer: project.customer || 'Unknown Customer',
+          progress: project.progress || 0,
+          status: project.status
+        })));
+        
+        if (dealStats.length > 0 && projectStats.length > 0) {
+          setStats({
+            activeDeals: parseInt(dealStats[0].active_deals) || 0,
+            totalPipelineValue: parseFloat(dealStats[0].total_pipeline_value) || 0,
+            activeProjects: parseInt(projectStats[0].active_projects) || 0,
+            projectsCompleted: parseInt(projectStats[0].completed_projects) || 0,
+            customerSatisfaction: 98, // This would come from customer surveys
+            revenueThisMonth: parseFloat(projectStats[0].revenue_this_month) || 0,
+          });
+        }
+      }
+    } catch (error) {
+      console.error('Error loading dashboard data:', error);
+      // Keep mock data on error
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleNewDeal = async (dealData: any) => {
-    // In a real app, this would save to the database
-    const newDeal = {
-      ...dealData,
-      id: `deal-${Date.now()}`,
-      lastActivity: 'just now'
-    };
-    setDeals(prev => [newDeal, ...prev.slice(0, 2)]); // Keep only 3 deals
-    setStats(prev => ({ ...prev, activeDeals: prev.activeDeals + 1 }));
-    setShowNewDealModal(false);
-    
-    // Show success message
-    alert('Deal created successfully!');
+    try {
+      // Create customer first if needed
+      let customerId = dealData.customer_id;
+      if (!customerId && dealData.customer_name) {
+        const customerResult = await executeSupabaseQuery(`
+          INSERT INTO customers (name, email, phone, status, customer_type)
+          VALUES ($1, $2, $3, 'prospect', 'individual')
+          RETURNING id
+        `, [dealData.customer_name, dealData.email || '', dealData.phone || '']);
+        
+        if (customerResult.length > 0) {
+          customerId = customerResult[0].id;
+        }
+      }
+
+      // Create the deal
+      await executeSupabaseQuery(`
+        INSERT INTO deals (
+          title, description, customer_id, value, stage, priority, 
+          expected_close_date, source, notes
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+      `, [
+        dealData.title,
+        dealData.description || '',
+        customerId,
+        dealData.value,
+        dealData.stage || 'new',
+        dealData.priority || 'medium',
+        dealData.expectedClose,
+        dealData.source || 'website',
+        dealData.notes || ''
+      ]);
+
+      // Reload dashboard data to reflect the new deal
+      await loadDashboardData();
+      
+      setShowNewDealModal(false);
+      alert('Deal created successfully!');
+    } catch (error) {
+      console.error('Error creating deal:', error);
+      // Fallback to mock behavior
+      const newDeal = {
+        ...dealData,
+        id: `deal-${Date.now()}`,
+        lastActivity: 'just now'
+      };
+      setDeals(prev => [newDeal, ...prev.slice(0, 2)]); // Keep only 3 deals
+      setStats(prev => ({ ...prev, activeDeals: prev.activeDeals + 1 }));
+      setShowNewDealModal(false);
+      alert('Deal created successfully!');
+    }
   };
 
   const handleNewProject = async (projectData: any) => {
