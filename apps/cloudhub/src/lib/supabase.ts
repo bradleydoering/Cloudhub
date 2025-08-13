@@ -23,6 +23,7 @@ let mockDeals: Deal[] = [
     value: 35000,
     stage: 'new',
     priority: 'high',
+    probability: 75,
     expected_close_date: '2025-09-15',
     source: 'website',
     notes: 'Initial consultation completed',
@@ -37,6 +38,7 @@ let mockDeals: Deal[] = [
     value: 75000,
     stage: 'qualified',
     priority: 'urgent',
+    probability: 85,
     expected_close_date: '2025-08-20',
     source: 'referral',
     notes: 'High priority client',
@@ -49,8 +51,9 @@ let mockDeals: Deal[] = [
     customer_id: '3',
     customer_name: 'Bob Smith', 
     value: 18000,
-    stage: 'estimating',
+    stage: 'qualified',
     priority: 'medium',
+    probability: 60,
     expected_close_date: '2025-10-01',
     source: 'design-library',
     notes: 'Waiting for material selection',
@@ -70,14 +73,27 @@ let mockProjects: ProjectWithCustomer[] = [
     start_date: '2024-12-01',
     expected_completion: '2025-03-15',
     created_at: new Date().toISOString(),
-    customer: { id: '1', name: 'John & Jane Doe', email: 'doe@example.com', phone: '555-0101' }
+    updated_at: new Date().toISOString(),
+    project_number: 'PRJ-001',
+    manager: 'John Manager',
+    priority: 'high',
+    customer: { 
+      id: '1', 
+      name: 'John & Jane Doe', 
+      email: 'doe@example.com', 
+      phone: '555-0101',
+      customer_type: 'individual',
+      status: 'active',
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    }
   }
 ];
 
 let mockCustomers: Customer[] = [
-  { id: '1', name: 'John & Jane Doe', email: 'doe@example.com', phone: '555-0101', status: 'active', created_at: new Date().toISOString() },
-  { id: '2', name: 'Alice Wong', email: 'alice@example.com', phone: '555-0102', status: 'active', created_at: new Date().toISOString() },
-  { id: '3', name: 'Bob Smith', email: 'bob@example.com', phone: '555-0103', status: 'active', created_at: new Date().toISOString() }
+  { id: '1', name: 'John & Jane Doe', email: 'doe@example.com', phone: '555-0101', status: 'active', customer_type: 'individual', created_at: new Date().toISOString(), updated_at: new Date().toISOString() },
+  { id: '2', name: 'Alice Wong', email: 'alice@example.com', phone: '555-0102', status: 'active', customer_type: 'individual', created_at: new Date().toISOString(), updated_at: new Date().toISOString() },
+  { id: '3', name: 'Bob Smith', email: 'bob@example.com', phone: '555-0103', status: 'active', customer_type: 'individual', created_at: new Date().toISOString(), updated_at: new Date().toISOString() }
 ];
 
 // Working mock implementation with in-memory persistence
@@ -251,11 +267,12 @@ class SupabaseService {
       const newDeal: Deal = {
         id: Date.now().toString(),
         title: dealData.title || '',
-        customer_id: dealData.customer_id || null,
+        customer_id: dealData.customer_id || '',
         customer_name: dealData.customer_name || '',
         value: dealData.value || 0,
         stage: dealData.stage || 'new',
         priority: dealData.priority || 'medium',
+        probability: dealData.probability || 50,
         expected_close_date: dealData.expected_close_date || '',
         source: dealData.source || 'website',
         notes: dealData.notes || '',
@@ -276,13 +293,13 @@ class SupabaseService {
       const dealIndex = mockDeals.findIndex(d => d.id === dealId);
       if (dealIndex === -1) throw new Error('Deal not found');
       
-      mockDeals[dealIndex] = {
-        ...mockDeals[dealIndex],
-        ...updates,
+      const deal = mockDeals[dealIndex]!; // Non-null assertion since we checked the index
+      // Use Object.assign to safely update only provided fields
+      Object.assign(deal, updates, {
         updated_at: new Date().toISOString()
-      };
+      });
       
-      return mockDeals[dealIndex];
+      return deal;
     } catch (error) {
       console.error('Error updating deal:', error);
       throw error;
@@ -338,7 +355,6 @@ class SupabaseService {
         phone: customerData.phone || '',
         status: customerData.status || 'prospect',
         customer_type: customerData.customer_type || 'individual',
-        location: customerData.location || 'Vancouver',
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
       };

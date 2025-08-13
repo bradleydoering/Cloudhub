@@ -597,8 +597,7 @@ export default function DealsPage() {
           email: dealData.customer_email || '',
           phone: dealData.customer_phone || '',
           status: 'prospect',
-          customer_type: 'individual',
-          location: selectedLocation !== 'all' ? selectedLocation : 'Vancouver'
+          customer_type: 'individual'
         });
         customerId = newCustomer.id;
       }
@@ -609,7 +608,7 @@ export default function DealsPage() {
         customer_id: customerId,
         customer_name: dealData.customer_name,
         value: dealData.value,
-        stage: newDealStage,
+        stage: newDealStage as 'new' | 'qualified' | 'proposal' | 'negotiation' | 'won' | 'lost',
         priority: dealData.priority,
         expected_close_date: dealData.expectedClose,
         source: dealData.source,
@@ -651,7 +650,7 @@ export default function DealsPage() {
       await supabaseService.updateDeal(updatedDeal.id, {
         title: updatedDeal.title,
         value: updatedDeal.value,
-        stage: updatedDeal.stage,
+        stage: updatedDeal.stage as 'new' | 'qualified' | 'proposal' | 'negotiation' | 'won' | 'lost',
         priority: updatedDeal.priority,
         expected_close_date: updatedDeal.expectedClose,
         source: updatedDeal.source,

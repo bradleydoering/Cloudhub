@@ -116,8 +116,7 @@ export default function Home() {
           email: dealData.customer_email || '',
           phone: dealData.customer_phone || '',
           status: 'prospect',
-          customer_type: 'individual',
-          location: selectedLocation !== 'all' ? selectedLocation : 'Vancouver'
+          customer_type: 'individual'
         });
         customerId = newCustomer.id;
       }
@@ -157,8 +156,7 @@ export default function Home() {
           email: projectData.customer_email || '',
           phone: projectData.customer_phone || '',
           status: 'active',
-          customer_type: 'individual',
-          location: selectedLocation !== 'all' ? selectedLocation : 'Vancouver'
+          customer_type: 'individual'
         });
         customerId = newCustomer.id;
       }
